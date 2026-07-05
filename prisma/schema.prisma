@@ -1,0 +1,934 @@
+// ============================================================================
+// @meavo/db - canonical Prisma schema for the shared MEAVO Postgres database.
+//
+// This is the ONLY schema allowed to alter the database. App repos (gateway,
+// hols, assembly, sales) consume this package and run `prisma generate` only.
+// Schema changes: edit here, apply from this repo, tag a release, then bump
+// the dependency in each app.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---- Identity & access (owner: gateway) ----
+
+enum SystemRole {
+  ADMIN
+  USER
+}
+
+enum TeamRole {
+  MANAGER
+  MEMBER
+}
+
+enum ToolCardKind {
+  LINK
+  APP_ACCESS
+}
+
+model User {
+  id            String     @id @default(cuid())
+  name          String?
+  email         String     @unique
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  systemRole         SystemRole @default(USER)
+  hrAccess           Boolean    @default(false)
+  holidayCountryCode String?
+  createdAt          DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  accounts           Account[]
+  teamMembers        TeamMember[]
+  cardAccess         ToolCardAccess[]
+  employee           Employee?
+  vacationRequests   VacationRequest[] @relation("Requester")
+  reviewedRequests   VacationRequest[] @relation("Reviewer")
+  allowances         UserAllowance[]
+  documentTemplatesCreated     DocumentTemplate[]        @relation("DocumentTemplateCreator")
+  documentTemplateVersionsCreated DocumentTemplateVersion[] @relation("DocumentTemplateVersionCreator")
+  generatedDocuments           GeneratedDocument[]       @relation("GeneratedDocumentCreator")
+  generatedDocumentsAsSubject  GeneratedDocument[]       @relation("GeneratedDocumentSubject")
+  libraryAssetsUploaded      LibraryAsset[]
+  salaryHistoryChanged       EmployeeSalaryHistory[]     @relation("SalaryHistoryChanger")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Team {
+  id              String       @id @default(cuid())
+  name            String       @unique
+  color           String       @default("#EEDCDC")
+  yearlyAllowance Int          @default(25)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  members         TeamMember[]
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  userId    String
+  teamId    String
+  role      TeamRole @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+}
+
+model ToolCard {
+  id           String           @id @default(cuid())
+  name         String
+  description  String
+  url          String
+  iconKey      String?
+  kind         ToolCardKind     @default(LINK)
+  linkedAppKey String?
+  sortOrder    Int              @default(0)
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  access       ToolCardAccess[]
+
+  @@unique([linkedAppKey])
+}
+
+model ToolCardAccess {
+  id        String   @id @default(cuid())
+  userId    String
+  cardId    String
+  createdAt DateTime @default(now())
+
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card ToolCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+}
+
+model LoginThrottle {
+  key         String   @id
+  attempts    Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
+// ---- HR & documents (owner: gateway) ----
+
+enum Company {
+  MEAVO
+  OA
+}
+
+model CompanyProfile {
+  company       Company  @id
+  legalName     String   @default("")
+  legalNameBg   String   @default("")
+  address       String   @default("")
+  addressBg     String   @default("")
+  companyNumber String   @default("")
+  vatNumber     String   @default("")
+  deVatNumber   String   @default("")
+  eori          String   @default("")
+  manager       String   @default("")
+  managerBg     String   @default("")
+  extraTaxFtePercent        Decimal @default(0) @db.Decimal(5, 2)
+  extraTaxFreelancerPercent Decimal @default(0) @db.Decimal(5, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum ContractType {
+  FTE
+  FREELANCE
+}
+
+model Employee {
+  id                     String       @id @default(cuid())
+  userId                 String       @unique
+  company                Company
+  contract               ContractType
+  startDate              DateTime     @db.Date
+  endDate                DateTime?    @db.Date
+  role                   String
+  employeeBirthdate      DateTime?    @db.Date
+  employeePersonalEmail  String       @default("")
+  employeeHomeAddress    String       @default("")
+  employeeHomeAddressBg  String       @default("")
+  providerCompanyName    String       @default("")
+  providerCompanyNameBg  String       @default("")
+  providerCompanyAddress String       @default("")
+  providerCompanyAddressBg String     @default("")
+  providerCompanyRegNumber String     @default("")
+  providerCompanyVatNumber String     @default("")
+  yearlySalary             Decimal?   @db.Decimal(12, 2)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents     EmployeeDocument[]
+  salaryHistory EmployeeSalaryHistory[]
+}
+
+model EmployeeSalaryHistory {
+  id            String   @id @default(cuid())
+  employeeId    String
+  yearlySalary  Decimal  @db.Decimal(12, 2)
+  effectiveFrom DateTime @db.Date
+  changedById   String
+  note          String   @default("")
+  createdAt     DateTime @default(now())
+
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  changedBy User     @relation("SalaryHistoryChanger", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, effectiveFrom])
+}
+
+model EmployeeDocument {
+  id         String   @id @default(cuid())
+  employeeId String
+  fileName   String
+  mimeType   String
+  storageKey String
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+}
+
+model DocumentTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String
+
+  createdBy User                      @relation("DocumentTemplateCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  versions  DocumentTemplateVersion[]
+}
+
+model DocumentTemplateVersion {
+  id                 String   @id @default(cuid())
+  templateId         String
+  versionNumber      Int
+  body               String   @db.Text
+  customPlaceholders String   @default("[]")
+  isCurrent          Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  createdById        String
+
+  template             DocumentTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdBy            User                @relation("DocumentTemplateVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  generatedDocuments   GeneratedDocument[]
+
+  @@unique([templateId, versionNumber])
+  @@index([templateId, isCurrent])
+}
+
+model GeneratedDocument {
+  id                String   @id @default(cuid())
+  templateVersionId String
+  generatedById     String
+  subjectUserId     String?
+  company           Company?
+  filledValues      String   @db.Text
+  warnings          String   @default("[]")
+  fileName          String
+  storageKey        String
+  createdAt         DateTime @default(now())
+
+  templateVersion DocumentTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  generatedBy     User                    @relation("GeneratedDocumentCreator", fields: [generatedById], references: [id], onDelete: Restrict)
+  subjectUser     User?                   @relation("GeneratedDocumentSubject", fields: [subjectUserId], references: [id], onDelete: SetNull)
+
+  @@index([templateVersionId])
+  @@index([subjectUserId])
+}
+
+model LibraryAsset {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  title        String
+  fileName     String?
+  mimeType     String?
+  storageKey   String?
+  uploadedById String?
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+}
+
+model GatewaySheetRecord {
+  id             String    @id @default(cuid())
+  rowKey         String    @unique
+  data           Json
+  invoiceDate    DateTime?
+  revenueEur     Decimal?  @db.Decimal(12, 2)
+  salesRep       String?
+  market         String?
+  clientType     String?
+  newVsRepeat    String?
+  lastImportedAt DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([lastImportedAt])
+  @@index([invoiceDate])
+  @@index([market])
+  @@index([clientType])
+  @@index([newVsRepeat])
+}
+
+// ---- Vacation tracking (owner: hols) ----
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model PublicHoliday {
+  id          String   @id @default(cuid())
+  countryCode String
+  date        DateTime @db.Date
+  localName   String   @default("")
+  name        String   @default("")
+  year        Int
+  createdAt   DateTime @default(now())
+
+  @@unique([countryCode, date])
+  @@index([countryCode, year])
+}
+
+model UserAllowance {
+  id        String   @id @default(cuid())
+  userId    String
+  year      Int
+  days      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, year])
+}
+
+model VacationRequest {
+  id           String        @id @default(cuid())
+  userId       String
+  startDate    DateTime
+  endDate      DateTime
+  days         Float
+  note         String?
+  status       RequestStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user       User  @relation("Requester", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("Reviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+// ---- Assembly (owner: assembly) ----
+
+enum SubmissionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+}
+
+enum QuestionnaireLocale {
+  EN
+  DE
+  FR
+  ES
+  IT
+  CS
+  NL
+}
+
+enum TranslationStatus {
+  DRAFT
+  APPROVED
+  STALE
+}
+
+enum QuestionType {
+  CHECKBOX
+  TEXT
+  YES_NO
+}
+
+enum AssemblySource {
+  SHEET_IMPORTED
+  APP_CREATED
+}
+
+enum AssemblyEventType {
+  ASSEMBLY
+  REPAIR
+  MOVING_SERVICE
+  AFTERCARE
+  INFO
+}
+
+enum AssemblyInternalTeam {
+  NO
+  LAT
+}
+
+enum AssemblyIssue {
+  PENDING
+  YES
+  NO
+}
+
+model AssemblyPartner {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  slug       String   @unique
+  email      String?
+  codeHash   String?
+  isActive   Boolean  @default(true)
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  assemblies  Assembly[]
+  submissions QuestionnaireSubmission[]
+}
+
+model Assembly {
+  id                  String    @id @default(cuid())
+  dealId              String    @unique
+  assemblyDate        DateTime? @db.Date
+  market              String    @default("")
+  clientName          String    @default("")
+  channelType         String    @default("")
+  deliveryPartnerName String    @default("")
+  installPartnerName  String    @default("")
+  installPartnerId    String?
+  lastImportedAt      DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // App-only (not written to the sheet)
+  source          AssemblySource       @default(SHEET_IMPORTED)
+  eventType       AssemblyEventType    @default(ASSEMBLY)
+  internalTeam    AssemblyInternalTeam @default(NO)
+  clientEmail     String?
+  clientPhone     String?
+  assemblyAddress String?
+  sheetRowNumber  Int?
+  sheetSyncError  String?
+
+  // Sheet-mirrored (columns F/G/H/K/L/M/O)
+  closure       Boolean       @default(false)
+  survey        Boolean       @default(false)
+  fulfilledOn   DateTime?     @db.Date
+  issue           AssemblyIssue @default(PENDING)
+  status          String?
+  priority        String?
+  comments        String?
+  issueCategories String[]
+
+  installPartner AssemblyPartner?          @relation(fields: [installPartnerId], references: [id], onDelete: SetNull)
+  submissions    QuestionnaireSubmission[]
+
+  @@index([installPartnerId])
+  @@index([assemblyDate])
+}
+
+model Questionnaire {
+  id          String   @id @default(cuid())
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sections  QuestionnaireSection[]
+  questions Question[]
+}
+
+model QuestionnaireSection {
+  id              String   @id @default(cuid())
+  questionnaireId String
+  title           String
+  sortOrder       Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  questions     Question[]
+  translations  QuestionnaireSectionTranslation[]
+
+  @@index([questionnaireId, sortOrder])
+}
+
+model Question {
+  id                      String       @id @default(cuid())
+  questionnaireId         String
+  sectionId               String?
+  parentQuestionId        String?
+  text                    String
+  type                    QuestionType @default(CHECKBOX)
+  sortOrder               Int
+  required                Boolean      @default(true)
+  endsQuestionnaireOnNo   Boolean      @default(false)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  questionnaire     Questionnaire         @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  section             QuestionnaireSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  parentQuestion      Question?             @relation("QuestionFollowUp", fields: [parentQuestionId], references: [id], onDelete: Cascade)
+  followUpQuestions   Question[]            @relation("QuestionFollowUp")
+  answers             QuestionAnswer[]
+  translations        QuestionTranslation[]
+
+  @@index([questionnaireId, sortOrder])
+  @@index([sectionId, sortOrder])
+}
+
+model QuestionnaireSectionTranslation {
+  sectionId String
+  locale    QuestionnaireLocale
+  title     String
+  status    TranslationStatus @default(DRAFT)
+  updatedAt DateTime          @updatedAt
+
+  section QuestionnaireSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@id([sectionId, locale])
+}
+
+model QuestionTranslation {
+  questionId String
+  locale     QuestionnaireLocale
+  text       String
+  status     TranslationStatus @default(DRAFT)
+  updatedAt  DateTime            @updatedAt
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, locale])
+}
+
+model QuestionnaireSubmission {
+  id          String           @id @default(cuid())
+  assemblyId  String
+  partnerId   String
+  status      SubmissionStatus @default(NOT_STARTED)
+  submittedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  assembly Assembly          @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  partner  AssemblyPartner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  answers  QuestionAnswer[]
+  photos   SubmissionPhoto[]
+
+  @@unique([assemblyId, partnerId])
+  @@index([partnerId])
+}
+
+model QuestionAnswer {
+  id           String   @id @default(cuid())
+  submissionId String
+  questionId   String
+  checked      Boolean  @default(false)
+  textAnswer   String   @default("")
+  yesNoAnswer  Boolean?
+
+  submission QuestionnaireSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   Question                @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, questionId])
+}
+
+model SubmissionPhoto {
+  id           String   @id @default(cuid())
+  submissionId String
+  storageKey   String
+  fileName     String
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  submission QuestionnaireSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+}
+
+model SheetImportState {
+  id           String    @id @default("default")
+  lastRunAt    DateTime?
+  rowCount     Int       @default(0)
+  errorMessage String?
+}
+
+enum BoothModel {
+  SOHO
+  WORKSTATION
+  CAMDEN_2
+  CAMDEN_4
+  HAVEN_ONE
+  HAVEN_FOCUS
+  HAVEN_2
+  HAVEN_4
+}
+
+enum ResourceType {
+  PDF
+  YOUTUBE
+  LINK
+  IMAGE
+}
+
+model Resource {
+  id             String       @id @default(cuid())
+  title          String
+  description    String       @default("")
+  type           ResourceType
+  youtubeUrl     String?
+  youtubeVideoId String?
+  linkUrl        String?
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  models ResourceBoothModel[]
+  files  ResourceFile[]
+
+  @@index([sortOrder])
+}
+
+model ResourceFile {
+  id         String   @id @default(cuid())
+  resourceId String
+  storageKey String
+  fileName   String
+  mimeType   String
+  createdAt  DateTime @default(now())
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
+}
+
+model ResourceBoothModel {
+  resourceId String
+  boothModel BoothModel
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@id([resourceId, boothModel])
+}
+
+// ---- Sales (owner: sales) ----
+
+enum DealStage {
+  QUOTE
+  WON
+  LOST
+}
+
+enum PaymentTerms {
+  UPFRONT_100
+  SPLIT_50_50
+  NET_30
+}
+
+enum DealClientType {
+  DIRECT
+  AGENCY
+  COWORKING
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
+enum DealContactKind {
+  MAIN
+  FINANCE
+}
+
+enum ProductFinish {
+  CUSTOM
+  WHITE_STOCK
+  BLACK_STOCK
+  LDF_COLOUR
+}
+
+enum BoothUnitStatus {
+  PLANNED
+  IN_PRODUCTION
+  IN_STORAGE
+  IN_TRANSIT
+  ASSEMBLED
+  OTHER
+}
+
+enum ProductKind {
+  BOOTH
+  ADDON
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  sku         String      @unique
+  kind        ProductKind @default(BOOTH)
+  description String      @default("")
+  imageUrl    String?
+  listPrice   Decimal     @default(0) @db.Decimal(12, 2)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  lineItems  QuoteLineItem[]
+  boothUnits BoothUnit[]
+
+  @@index([isActive])
+  @@index([kind])
+}
+
+model Client {
+  id                String         @id @default(cuid())
+  name              String
+  registeredAddress String         @default("")
+  vatNumber         String         @default("")
+  clientType        DealClientType @default(DIRECT)
+  market            String         @default("")
+  website           String         @default("")
+  isVip             Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  contacts ClientContact[]
+  deals    Deal[]
+
+  @@index([name])
+}
+
+model ClientContact {
+  id        String          @id @default(cuid())
+  clientId  String
+  kind      DealContactKind @default(MAIN)
+  name      String
+  email     String          @default("")
+  phone     String          @default("")
+  role      String          @default("")
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+}
+
+model Deal {
+  id          String    @id @default(cuid())
+  quoteNumber String    @unique
+  stage       DealStage @default(QUOTE)
+
+  /// Business DealID (invoice/PO convention) — entered by the rep when the
+  /// quote is won. Same key as Assembly.dealId and GatewaySheetRecord.rowKey.
+  dealId String? @unique
+
+  /// Client directory link. The client fields below stay as a snapshot taken
+  /// at quote time, so editing a client never rewrites past quotes.
+  clientId String?
+
+  dealDate          DateTime       @db.Date
+  salesRep          String         @default("")
+  market            String         @default("")
+  clientName        String
+  registeredAddress String         @default("")
+  vatNumber         String         @default("")
+  clientType        DealClientType @default(DIRECT)
+  paymentTerms      PaymentTerms   @default(UPFRONT_100)
+  paymentStatus     PaymentStatus  @default(UNPAID)
+  paymentPoDate     DateTime?      @db.Date
+  currency          String         @default("EUR")
+  notes             String         @default("")
+
+  wonAt           DateTime?
+  createdByUserId String?
+
+  // Ops File write-back bookkeeping
+  sheetRows      Json?
+  sheetSyncedAt  DateTime?
+  sheetSyncError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client     Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  contacts   DealContact[]
+  lineItems  QuoteLineItem[]
+  boothUnits BoothUnit[]
+
+  @@index([stage])
+  @@index([dealDate])
+  @@index([clientName])
+  @@index([clientId])
+}
+
+model DealContact {
+  id        String          @id @default(cuid())
+  dealId    String
+  kind      DealContactKind @default(MAIN)
+  name      String
+  email     String          @default("")
+  phone     String          @default("")
+  role      String          @default("")
+  sortOrder Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId])
+}
+
+model QuoteLineItem {
+  id            String        @id @default(cuid())
+  dealId        String
+  productId     String
+  quantity      Int           @default(1)
+  unitPrice     Decimal       @db.Decimal(12, 2)
+  finish        ProductFinish @default(WHITE_STOCK)
+  finishDetails String        @default("")
+  description   String        @default("")
+  sortOrder     Int           @default(0)
+
+  /// Set on add-on lines that are attached to a booth line (extra warranty,
+  /// chair, ...). Attached add-ons render under their booth on the PDF and
+  /// join the booth's row in the Ops File.
+  parentLineItemId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deal    Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  parent QuoteLineItem?  @relation("LineItemAddOns", fields: [parentLineItemId], references: [id], onDelete: SetNull)
+  addOns QuoteLineItem[] @relation("LineItemAddOns")
+
+  @@index([dealId])
+  @@index([productId])
+  @@index([parentLineItemId])
+}
+
+model BoothUnit {
+  id            String          @id @default(cuid())
+  /// Business DealID — references Deal.dealId (not Deal.id) so the future
+  /// manufacturing and logistics tools can query by the cross-app key.
+  dealId        String
+  productId     String
+  finish        ProductFinish   @default(WHITE_STOCK)
+  finishDetails String          @default("")
+  location      String          @default("")
+  status        BoothUnitStatus @default(PLANNED)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  deal    Deal    @relation(fields: [dealId], references: [dealId], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([dealId])
+  @@index([status])
+  @@index([productId])
+}
+
+// ---- Notifications (owner: gateway) ----
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model NotificationOutbox {
+  id             String             @id @default(cuid())
+  sourceApp      String
+  eventType      String
+  idempotencyKey String?            @unique
+  payload        Json
+  status         NotificationStatus @default(PENDING)
+  attempts       Int                @default(0)
+  lastError      String?
+  scheduledFor   DateTime           @default(now())
+  sentAt         DateTime?
+  createdAt      DateTime           @default(now())
+
+  deliveries NotificationDelivery[]
+
+  @@index([status, scheduledFor])
+}
+
+model NotificationDelivery {
+  id              String             @id @default(cuid())
+  outboxId        String
+  recipientEmail  String
+  recipientUserId String?
+  subject         String
+  resendMessageId String?
+  status          NotificationStatus @default(PENDING)
+  sentAt          DateTime?
+  error           String?
+  createdAt       DateTime           @default(now())
+
+  outbox NotificationOutbox @relation(fields: [outboxId], references: [id], onDelete: Cascade)
+
+  @@index([outboxId])
+  @@index([createdAt])
+}
+
+model NotificationEventSetting {
+  eventType String   @id
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
