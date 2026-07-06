@@ -962,77 +962,77 @@ model NotificationEventSetting {
 // ---- Manufacturing / MRP (owner: mrp) ----
 
 enum MrpRole {
-  SCANNER
-  REVIEWER
-  ADMIN
+  scanner
+  reviewer
+  admin
 }
 
 enum MrpDocumentType {
-  INVOICE
-  PROFORMA
-  DELIVERY_NOTE
+  invoice
+  proforma
+  delivery_note
 }
 
 enum MrpDocumentStatus {
-  PENDING_REVIEW
-  APPROVED
-  REJECTED
-  SYNCED
-  SYNC_FAILED
+  pending_review
+  approved
+  rejected
+  synced
+  sync_failed
 }
 
 enum MrpDeliveryZone {
-  LOCAL
-  EU
-  NON_EU
+  local
+  eu
+  non_eu
 }
 
 enum MrpSyncAdapter {
-  STUB
-  EXPORT
-  API
-  AGENT
+  stub
+  export
+  api
+  agent
 }
 
 enum MrpSyncStatus {
-  QUEUED
-  RUNNING
-  SUCCEEDED
-  FAILED
+  queued
+  running
+  succeeded
+  failed
 }
 
 enum MrpStockMovementType {
-  INITIAL
-  MANUAL_RECEIPT
-  ZERON_RECEIPT
-  PRODUCTION_OUT
-  ELEMENT_CONSUMPTION
-  BATCH_COMPLETE_FLUSH
-  INVENTORY_COUNT
-  BOM_REWORK_ADJUSTMENT
+  initial
+  manual_receipt
+  zeron_receipt
+  production_out
+  element_consumption
+  batch_complete_flush
+  inventory_count
+  bom_rework_adjustment
 }
 
 enum MrpManufacturingBatchStatus {
-  PLANNED
-  IN_PRODUCTION
-  COMPLETED
-  CANCELLED
+  planned
+  in_production
+  completed
+  cancelled
 }
 
 enum MrpRecipeExceptionStatus {
-  ACTIVE
-  REVERTED
+  active
+  reverted
 }
 
 enum MrpRecipeExceptionChangeType {
-  REMOVE
-  ADD
+  remove
+  add
 }
 
 /// App-specific role for MRP; identity lives in gateway User.
 model MrpUserProfile {
   userId    String   @id
-  role      MrpRole  @default(SCANNER)
+  role      MrpRole  @default(scanner)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1100,7 +1100,7 @@ model MrpDocument {
   /// MRN / МДД / МАД (only for non-EU)
   customsRef   String?
 
-  status MrpDocumentStatus @default(PENDING_REVIEW)
+  status MrpDocumentStatus @default(pending_review)
 
   /// Vercel Blob pathname of the original file
   storageKey        String
@@ -1307,7 +1307,7 @@ model MrpElementBomLine {
 model MrpManufacturingBatch {
   id                 String                      @id @default(cuid())
   name               String
-  status             MrpManufacturingBatchStatus @default(PLANNED)
+  status             MrpManufacturingBatchStatus @default(planned)
   boothModelId       String?
   qty                Int?
   warehouseId        String?
@@ -1367,7 +1367,7 @@ model MrpRecipeException {
   id          String                   @id @default(cuid())
   name        String
   notes       String?
-  status      MrpRecipeExceptionStatus @default(ACTIVE)
+  status      MrpRecipeExceptionStatus @default(active)
   createdById String?
   createdAt   DateTime                 @default(now())
   revertedAt  DateTime?
@@ -1541,31 +1541,31 @@ model MrpInventoryCount {
 // ---- Factory floor (owner: factory) ----
 
 enum FactoryBatchStatus {
-  PLANNED
-  ACTIVE
-  PAUSED
-  DONE
+  planned
+  active
+  paused
+  done
 }
 
 enum FactoryQuotaPeriod {
-  DAY
-  WEEK
-  MONTH
+  day
+  week
+  month
 }
 
 enum FactoryPlanningBatchStatus {
-  PROPOSED
-  PLANNED
-  ACTIVE
-  PAUSED
-  READY
-  CANCELLED
+  proposed
+  planned
+  active
+  paused
+  ready
+  cancelled
 }
 
 enum FactoryPlanningBoothStatus {
-  PLANNED
-  ACTIVE
-  READY
+  planned
+  active
+  ready
 }
 
 /// Station grouping (roles table in the old Factory Supabase schema).
@@ -1683,7 +1683,7 @@ model FactoryProductionBatch {
   priority        Int                @default(1)
   plannedStart    DateTime?          @db.Date
   plannedEnd      DateTime?          @db.Date
-  status          FactoryBatchStatus @default(PLANNED)
+  status          FactoryBatchStatus @default(planned)
   scheduleVersion Int                @default(1)
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -1943,7 +1943,7 @@ model FactoryPlanningBatch {
   siteId                  String
   batchCode               String                     @unique
   modelCode               String?
-  status                  FactoryPlanningBatchStatus @default(PROPOSED)
+  status                  FactoryPlanningBatchStatus @default(proposed)
   priority                Int                        @default(1)
   plannedStart            DateTime?                  @db.Date
   plannedEnd              DateTime?                  @db.Date
