@@ -457,6 +457,7 @@ model Assembly {
   clientEmail     String?
   clientPhone     String?
   assemblyAddress String?
+  assemblyTime    String? // HH:mm in Europe/London; app-only, not written to sheet
   sheetRowNumber  Int?
   sheetSyncError  String?
 
