@@ -817,6 +817,8 @@ model Deal {
   dealDate          DateTime       @db.Date
   salesRep          String         @default("")
   market            String         @default("")
+  /// US state for deals in the US market (free text, e.g. "California").
+  usState           String         @default("")
   clientName        String
   registeredAddress String         @default("")
   vatNumber         String         @default("")
