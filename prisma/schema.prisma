@@ -447,7 +447,14 @@ model AssemblyPartner {
 
 model Assembly {
   id                  String    @id @default(cuid())
+  /// Unique assembly identifier (sheet column B, URL param). Historically the
+  /// business DealID; for app-created assemblies it is a renameable name
+  /// auto-suggested as "{DEALID}-ASS".
   dealId              String    @unique
+
+  /// Business DealID of the sales deal this assembly belongs to. Several
+  /// assemblies (assembly, repair, aftercare, ...) can link to one deal.
+  linkedDealId String?
   assemblyDate        DateTime? @db.Date
   market              String    @default("")
   clientName          String    @default("")
@@ -481,10 +488,12 @@ model Assembly {
   issueCategories String[]
 
   installPartner AssemblyPartner?          @relation(fields: [installPartnerId], references: [id], onDelete: SetNull)
+  linkedDeal     Deal?                     @relation(fields: [linkedDealId], references: [dealId], onDelete: SetNull)
   submissions    QuestionnaireSubmission[]
 
   @@index([installPartnerId])
   @@index([assemblyDate])
+  @@index([linkedDealId])
 }
 
 model Questionnaire {
@@ -818,6 +827,13 @@ model Deal {
   currency          String         @default("EUR")
   notes             String         @default("")
 
+  /// Where the booths get installed — distinct from registeredAddress (invoicing).
+  assemblyAddress String @default("")
+
+  /// Set by sales once the deal is invoiced/paid and can be scheduled for
+  /// assembly. Surfaces the deal on the assembly app's Ready deals page.
+  readyToAssemble Boolean @default(false)
+
   wonAt           DateTime?
   createdByUserId String?
 
@@ -833,11 +849,13 @@ model Deal {
   contacts   DealContact[]
   lineItems  QuoteLineItem[]
   boothUnits BoothUnit[]
+  assemblies Assembly[]
 
   @@index([stage])
   @@index([dealDate])
   @@index([clientName])
   @@index([clientId])
+  @@index([readyToAssemble])
 }
 
 model DealContact {
