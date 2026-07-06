@@ -727,8 +727,24 @@ model Product {
   lineItems  QuoteLineItem[]
   boothUnits BoothUnit[]
 
+  /// For ADDON products: booths this add-on is limited to. No rows = the
+  /// add-on can be attached to any booth.
+  addOnRestrictions ProductAddOnRestriction[] @relation("AddOnRestrictions")
+  boothAddOns       ProductAddOnRestriction[] @relation("BoothAddOns")
+
   @@index([isActive])
   @@index([kind])
+}
+
+model ProductAddOnRestriction {
+  addOnId String
+  boothId String
+
+  addOn Product @relation("AddOnRestrictions", fields: [addOnId], references: [id], onDelete: Cascade)
+  booth Product @relation("BoothAddOns", fields: [boothId], references: [id], onDelete: Cascade)
+
+  @@id([addOnId, boothId])
+  @@index([boothId])
 }
 
 model Client {
