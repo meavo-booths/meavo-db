@@ -59,6 +59,15 @@ model User {
   generatedDocumentsAsSubject  GeneratedDocument[]       @relation("GeneratedDocumentSubject")
   libraryAssetsUploaded      LibraryAsset[]
   salaryHistoryChanged       EmployeeSalaryHistory[]     @relation("SalaryHistoryChanger")
+
+  mrpProfile                 MrpUserProfile?
+  mrpDocumentsCreated        MrpDocument[]        @relation("MrpDocumentCreator")
+  mrpDocumentsApproved       MrpDocument[]        @relation("MrpDocumentApprover")
+  mrpCorrectionLogs          MrpCorrectionLog[]   @relation("MrpCorrectionAuthor")
+  mrpRecipeExceptionsCreated MrpRecipeException[] @relation("MrpRecipeExceptionCreator")
+  mrpStockMovementsCreated   MrpStockMovement[]   @relation("MrpStockMovementCreator")
+  mrpProductionBatchesCreated MrpProductionBatch[] @relation("MrpProductionBatchCreator")
+  mrpInventoryCountsCreated  MrpInventoryCount[]  @relation("MrpInventoryCountCreator")
 }
 
 model Account {
@@ -948,4 +957,1050 @@ model NotificationEventSetting {
   eventType String   @id
   enabled   Boolean  @default(true)
   updatedAt DateTime @updatedAt
+}
+
+// ---- Manufacturing / MRP (owner: mrp) ----
+
+enum MrpRole {
+  SCANNER
+  REVIEWER
+  ADMIN
+}
+
+enum MrpDocumentType {
+  INVOICE
+  PROFORMA
+  DELIVERY_NOTE
+}
+
+enum MrpDocumentStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SYNCED
+  SYNC_FAILED
+}
+
+enum MrpDeliveryZone {
+  LOCAL
+  EU
+  NON_EU
+}
+
+enum MrpSyncAdapter {
+  STUB
+  EXPORT
+  API
+  AGENT
+}
+
+enum MrpSyncStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum MrpStockMovementType {
+  INITIAL
+  MANUAL_RECEIPT
+  ZERON_RECEIPT
+  PRODUCTION_OUT
+  ELEMENT_CONSUMPTION
+  BATCH_COMPLETE_FLUSH
+  INVENTORY_COUNT
+  BOM_REWORK_ADJUSTMENT
+}
+
+enum MrpManufacturingBatchStatus {
+  PLANNED
+  IN_PRODUCTION
+  COMPLETED
+  CANCELLED
+}
+
+enum MrpRecipeExceptionStatus {
+  ACTIVE
+  REVERTED
+}
+
+enum MrpRecipeExceptionChangeType {
+  REMOVE
+  ADD
+}
+
+/// App-specific role for MRP; identity lives in gateway User.
+model MrpUserProfile {
+  userId    String   @id
+  role      MrpRole  @default(SCANNER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MrpSupplier {
+  id              String           @id @default(cuid())
+  name            String
+  /// lowercased + trimmed for matching
+  normalizedName  String
+  vatNumber       String?
+  /// Bulgarian company identifier
+  eik             String?
+  /// ISO-3166-1 alpha-2
+  countryCode     String?
+  address         String?
+  /// ISO-4217 (e.g. BGN, EUR)
+  defaultCurrency String?
+  deliveryZone    MrpDeliveryZone?
+  zeronId         String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  extractionProfile MrpSupplierExtractionProfile?
+  documents         MrpDocument[]
+  correctionLogs    MrpCorrectionLog[]
+
+  @@index([normalizedName])
+  @@index([vatNumber])
+  @@index([eik])
+}
+
+/// Per-supplier extraction profile — drives few-shot learning.
+model MrpSupplierExtractionProfile {
+  supplierId     String   @id
+  /// Free-form hints injected into the AI prompt.
+  hints          Json     @default("{}")
+  /// Recent approved extractions used as few-shot examples (capped at 5, FIFO).
+  recentExamples Json     @default("[]")
+  updatedAt      DateTime @updatedAt
+
+  supplier MrpSupplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+}
+
+/// A scanned document (invoice / proforma / delivery note).
+model MrpDocument {
+  id             String            @id @default(cuid())
+  type           MrpDocumentType
+  documentNumber String?
+  issueDate      DateTime?         @db.Date
+  dueDate        DateTime?         @db.Date
+  deliveryDate   DateTime?         @db.Date
+
+  supplierId      String?
+  /// Snapshot of supplier text on the document (in case supplierId is null/unmatched)
+  supplierNameRaw String?
+
+  currency String?
+  subtotal Decimal? @db.Decimal(18, 4)
+  vatTotal Decimal? @db.Decimal(18, 4)
+  total    Decimal? @db.Decimal(18, 4)
+
+  deliveryZone MrpDeliveryZone?
+  /// MRN / МДД / МАД (only for non-EU)
+  customsRef   String?
+
+  status MrpDocumentStatus @default(PENDING_REVIEW)
+
+  /// Vercel Blob pathname of the original file
+  storageKey        String
+  thumbnailKey      String?
+  originalMimeType  String?
+  originalSizeBytes BigInt?
+  /// SHA-256 of the original bytes — used to dedupe re-uploads.
+  contentHash       String?
+
+  /// Raw extraction returned by the AI provider (untouched).
+  rawAiExtraction Json?
+  /// Confidence map: { "field.path": 0.0-1.0 }.
+  confidence      Json  @default("{}")
+  /// Final reviewed extraction (matches the zod schema after edits).
+  finalExtraction Json?
+
+  extractorProvider String?
+
+  zeronId  String?
+  syncedAt DateTime?
+
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  supplier     MrpSupplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy    User?              @relation("MrpDocumentCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy   User?              @relation("MrpDocumentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  lineItems    MrpLineItem[]
+  corrections  MrpCorrectionLog[]
+  syncAttempts MrpSyncAttempt[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([contentHash])
+}
+
+/// Line items extracted from a document.
+model MrpLineItem {
+  id                 String   @id @default(cuid())
+  documentId         String
+  /// 1-based row index
+  position           Int
+  sku                String?
+  name               String
+  quantity           Decimal? @db.Decimal(18, 4)
+  unit               String?
+  unitPrice          Decimal? @db.Decimal(18, 4)
+  vatRate            Decimal? @db.Decimal(6, 3)
+  lineTotal          Decimal? @db.Decimal(18, 4)
+  matchedZeronItemId String?
+  notes              String?
+  createdAt          DateTime @default(now())
+
+  document MrpDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, position])
+  @@index([documentId])
+}
+
+/// Every field-level edit a user makes vs the AI extraction — drives learning.
+model MrpCorrectionLog {
+  id            String   @id @default(cuid())
+  documentId    String
+  supplierId    String?
+  /// dot+brackets path, e.g. "supplier.vatNumber" or "lineItems[2].unitPrice"
+  fieldPath     String
+  aiValue       Json?
+  userValue     Json?
+  note          String?
+  correctedById String?
+  correctedAt   DateTime @default(now())
+
+  document    MrpDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  supplier    MrpSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  correctedBy User?        @relation("MrpCorrectionAuthor", fields: [correctedById], references: [id], onDelete: SetNull)
+
+  @@index([documentId])
+  @@index([supplierId, fieldPath])
+}
+
+/// Audit log of every Zeron sync attempt.
+model MrpSyncAttempt {
+  id          String         @id @default(cuid())
+  documentId  String
+  adapter     MrpSyncAdapter
+  status      MrpSyncStatus
+  /// Payload we attempted to send (for replay/debugging).
+  payload     Json?
+  /// Response or output (XLSX path, API JSON, etc.).
+  response    Json?
+  error       String?
+  attemptedAt DateTime       @default(now())
+  completedAt DateTime?
+  isCurrent   Boolean        @default(true)
+
+  document MrpDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([status])
+}
+
+/// Physical warehouse / site (Аксаково, Варна, Казанлък, …).
+model MrpWarehouse {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  manufacturingBatches MrpManufacturingBatch[]
+  stockMovements       MrpStockMovement[]
+  stockBalances        MrpStockBalance[]
+  inventoryCounts      MrpInventoryCount[]
+}
+
+/// Booth product line synced from Google Sheets (Soho, Camden 4, …).
+model MrpBoothModel {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  elements             MrpBoothElement[]
+  manufacturingBatches MrpManufacturingBatch[]
+  exceptionScopes      MrpRecipeExceptionScope[]
+}
+
+/// Checklist column on batch Опаковане tab (Таван, Под, …) per model.
+model MrpBoothElement {
+  id           String   @id @default(cuid())
+  boothModelId String
+  sheetHeader  String
+  /// Short label used in ElementBOM CSV (may differ from sheetHeader).
+  simpleName   String
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  boothModel        MrpBoothModel                  @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
+  bomLines          MrpElementBomLine[]
+  batchUnitElements MrpBatchUnitElement[]
+  exceptionChanges  MrpRecipeExceptionLineChange[]
+
+  @@unique([boothModelId, sheetHeader])
+  @@unique([boothModelId, simpleName])
+}
+
+/// Raw materials tracked for stock (Zeron item code optional until API sync).
+model MrpMaterial {
+  id              String   @id @default(cuid())
+  /// Zeron / internal SKU — unique when set.
+  code            String?  @unique
+  name            String
+  unit            String   @default("kg")
+  unitPriceEur    Decimal? @db.Decimal(18, 4)
+  /// Denormalized default-warehouse on-hand; see MrpStockBalance per site.
+  currentQuantity Decimal  @default(0) @db.Decimal(18, 4)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bomLines             MrpElementBomLine[]
+  exceptionChanges     MrpRecipeExceptionLineChange[]
+  stockMovements       MrpStockMovement[]
+  stockBalances        MrpStockBalance[]
+  productionBatchLines MrpProductionBatchLine[]
+  inventoryCounts      MrpInventoryCount[]
+
+  @@index([name])
+  @@index([isActive])
+}
+
+/// Material code referenced in ElementBOM but not yet in materials master.
+model MrpBomMissingMaterialCode {
+  code         String   @id
+  bomLineCount Int      @default(1)
+  updatedAt    DateTime @updatedAt
+}
+
+/// Materials consumed to complete one element on one booth.
+model MrpElementBomLine {
+  id             String   @id @default(cuid())
+  boothElementId String
+  materialId     String
+  /// Empty/null = all exterior colours (wildcard).
+  colour         String?
+  /// null = all markets; default = non-US; US = US booths only.
+  market         String?
+  quantity       Decimal  @db.Decimal(18, 4)
+  createdAt      DateTime @default(now())
+
+  boothElement MrpBoothElement @relation(fields: [boothElementId], references: [id], onDelete: Cascade)
+  material     MrpMaterial     @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([boothElementId, colour, market, materialId])
+}
+
+/// Row from master sheet Статус на партиди (synced from Google Sheets).
+model MrpManufacturingBatch {
+  id                 String                      @id @default(cuid())
+  name               String
+  status             MrpManufacturingBatchStatus @default(PLANNED)
+  boothModelId       String?
+  qty                Int?
+  warehouseId        String?
+  masterSheetRowKey  String                      @unique
+  batchSpreadsheetId String?
+  /// Business DealID — aligns with Deal.dealId / BoothUnit.dealId for
+  /// future sales → factory linkage.
+  dealId             String?
+  lastSyncedAt       DateTime?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  boothModel     MrpBoothModel?                 @relation(fields: [boothModelId], references: [id], onDelete: SetNull)
+  warehouse      MrpWarehouse?                  @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  units          MrpBatchUnit[]
+  exceptionLinks MrpRecipeExceptionBatchLink[]
+
+  @@index([status])
+}
+
+/// One booth row on batch Опаковане tab.
+model MrpBatchUnit {
+  id                   String   @id @default(cuid())
+  manufacturingBatchId String
+  sheetRowIndex        Int
+  boothIdText          String?
+  colour               String?
+  progressPct          Decimal? @db.Decimal(6, 2)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  manufacturingBatch MrpManufacturingBatch @relation(fields: [manufacturingBatchId], references: [id], onDelete: Cascade)
+  elements           MrpBatchUnitElement[]
+
+  @@unique([manufacturingBatchId, sheetRowIndex])
+}
+
+/// Checkbox state per element on a batch unit row.
+model MrpBatchUnitElement {
+  id              String    @id @default(cuid())
+  batchUnitId     String
+  boothElementId  String
+  isComplete      Boolean   @default(false)
+  completedAt     DateTime?
+  deductionPosted Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  batchUnit    MrpBatchUnit    @relation(fields: [batchUnitId], references: [id], onDelete: Cascade)
+  boothElement MrpBoothElement @relation(fields: [boothElementId], references: [id], onDelete: Restrict)
+
+  @@unique([batchUnitId, boothElementId])
+}
+
+/// Named temporary override to standard recipes (e.g. material substitution).
+model MrpRecipeException {
+  id          String                   @id @default(cuid())
+  name        String
+  notes       String?
+  status      MrpRecipeExceptionStatus @default(ACTIVE)
+  createdById String?
+  createdAt   DateTime                 @default(now())
+  revertedAt  DateTime?
+
+  createdBy   User?                          @relation("MrpRecipeExceptionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  scopes      MrpRecipeExceptionScope[]
+  lineChanges MrpRecipeExceptionLineChange[]
+  batchLinks  MrpRecipeExceptionBatchLink[]
+
+  @@index([status])
+}
+
+/// Models / colour / market where an exception applies (null = wildcard).
+model MrpRecipeExceptionScope {
+  id           String  @id @default(cuid())
+  exceptionId  String
+  boothModelId String
+  colour       String?
+  market       String?
+
+  exception  MrpRecipeException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+  boothModel MrpBoothModel      @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
+
+  @@unique([exceptionId, boothModelId, colour, market])
+  @@index([exceptionId])
+}
+
+/// BOM line removals or additions for an exception.
+model MrpRecipeExceptionLineChange {
+  id             String                       @id @default(cuid())
+  exceptionId    String
+  boothElementId String
+  changeType     MrpRecipeExceptionChangeType
+  materialId     String
+  quantity       Decimal                      @db.Decimal(18, 4)
+  colour         String?
+  market         String?
+
+  exception    MrpRecipeException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+  boothElement MrpBoothElement    @relation(fields: [boothElementId], references: [id], onDelete: Cascade)
+  material     MrpMaterial        @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@index([exceptionId])
+}
+
+/// Link exception to production batch (whole batch or specific booths).
+model MrpRecipeExceptionBatchLink {
+  id                   String  @id @default(cuid())
+  exceptionId          String
+  batchLabel           String
+  manufacturingBatchId String?
+  applyToWholeBatch    Boolean @default(true)
+  boothIdTexts         Json    @default("[]")
+
+  exception          MrpRecipeException     @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+  manufacturingBatch MrpManufacturingBatch? @relation(fields: [manufacturingBatchId], references: [id], onDelete: SetNull)
+
+  @@index([exceptionId])
+}
+
+/// Cron / manual Google Sheets sync audit.
+model MrpSheetSyncLog {
+  id           String    @id @default(cuid())
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+  tabsRead     Int?
+  rowsUpserted Int?
+  errors       Json      @default("[]")
+}
+
+/// Immutable ledger of quantity changes.
+model MrpStockMovement {
+  id            String               @id @default(cuid())
+  warehouseId   String
+  materialId    String
+  movementType  MrpStockMovementType
+  /// Signed delta applied to on-hand quantity (positive = in, negative = out).
+  quantityDelta Decimal              @db.Decimal(18, 4)
+  effectiveAt   DateTime
+  notes         String?
+  /// MrpProductionBatch.id, future zeron event id, etc.
+  referenceId   String?
+  metadata      Json                 @default("{}")
+  createdById   String?
+  createdAt     DateTime             @default(now())
+
+  warehouse       MrpWarehouse        @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  material        MrpMaterial         @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  createdBy       User?               @relation("MrpStockMovementCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  inventoryCounts MrpInventoryCount[]
+
+  @@index([warehouseId])
+  @@index([materialId])
+  @@index([effectiveAt])
+  @@index([movementType])
+}
+
+/// On-hand quantity per warehouse × material (cache; ledger is source of truth).
+model MrpStockBalance {
+  id          String   @id @default(cuid())
+  warehouseId String
+  materialId  String
+  quantity    Decimal  @default(0) @db.Decimal(18, 4)
+  updatedAt   DateTime @updatedAt
+
+  warehouse MrpWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  material  MrpMaterial  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, materialId])
+}
+
+/// Planned production run — drives forecast, does not change stock until recorded.
+model MrpProductionBatch {
+  id             String   @id @default(cuid())
+  productionDate DateTime @db.Date
+  label          String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  createdBy User?                    @relation("MrpProductionBatchCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  lines     MrpProductionBatchLine[]
+
+  @@index([productionDate])
+}
+
+/// Material consumption per planned production batch.
+model MrpProductionBatchLine {
+  id         String   @id @default(cuid())
+  batchId    String
+  materialId String
+  quantity   Decimal  @db.Decimal(18, 4)
+  createdAt  DateTime @default(now())
+
+  batch    MrpProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  material MrpMaterial        @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([batchId, materialId])
+  @@index([batchId])
+  @@index([materialId])
+}
+
+/// Physical inventory count (инвентаризация) with variance audit.
+model MrpInventoryCount {
+  id                       String   @id @default(cuid())
+  warehouseId              String
+  materialId               String
+  countDate                DateTime @db.Date
+  systemQuantity           Decimal  @db.Decimal(18, 4)
+  countedQuantity          Decimal  @db.Decimal(18, 4)
+  /// counted − system at time of count
+  variance                 Decimal  @db.Decimal(18, 4)
+  notes                    String?
+  /// Production checkpoint: physical count reflects stock through this batch (inclusive).
+  countedThroughBatchId    String?
+  /// Batch name when not linked yet, or denormalized for display.
+  countedThroughBatchLabel String?
+  movementId               String?
+  createdById              String?
+  createdAt                DateTime @default(now())
+
+  warehouse MrpWarehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  material  MrpMaterial       @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  movement  MrpStockMovement? @relation(fields: [movementId], references: [id], onDelete: SetNull)
+  createdBy User?             @relation("MrpInventoryCountCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([materialId])
+  @@index([countDate])
+}
+
+// ---- Factory floor (owner: factory) ----
+
+enum FactoryBatchStatus {
+  PLANNED
+  ACTIVE
+  PAUSED
+  DONE
+}
+
+enum FactoryQuotaPeriod {
+  DAY
+  WEEK
+  MONTH
+}
+
+enum FactoryPlanningBatchStatus {
+  PROPOSED
+  PLANNED
+  ACTIVE
+  PAUSED
+  READY
+  CANCELLED
+}
+
+enum FactoryPlanningBoothStatus {
+  PLANNED
+  ACTIVE
+  READY
+}
+
+/// Station grouping (roles table in the old Factory Supabase schema).
+model FactoryStationRole {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameBg    String?
+  createdAt DateTime @default(now())
+
+  stations FactoryStation[]
+}
+
+model FactoryStation {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  nameBg      String
+  roleId      String?
+  sortOrder   Int      @default(0)
+  tracksColor Boolean  @default(true)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  role              FactoryStationRole?                @relation(fields: [roleId], references: [id])
+  bomRequirements   FactoryStationElementRequirement[]
+  workItems         FactoryStationWorkItem[]
+  productionEvents  FactoryProductionEvent[]
+  workSessions      FactoryWorkSession[]
+  quotas            FactoryQuota[]
+  devices           FactoryDevice[]
+  cncMachines       FactoryCncMachineMap[]
+  cncDailySummaries FactoryCncDailySummary[]
+  taskOverrides     FactoryScheduleTaskOverride[]
+}
+
+model FactoryBoothModel {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameBg    String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  bomRequirements   FactoryStationElementRequirement[]
+  productionBatches FactoryProductionBatch[]
+  planningBatches   FactoryPlanningBatch[]
+  planningBooths    FactoryPlanningBooth[]
+}
+
+/// Elements (parts).
+model FactoryElement {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameBg    String
+  createdAt DateTime @default(now())
+
+  bomRequirements  FactoryStationElementRequirement[]
+  dependents       FactoryStationElementRequirement[] @relation("FactoryElementDependency")
+  workItems        FactoryStationWorkItem[]
+  productionEvents FactoryProductionEvent[]
+  workSessions     FactoryWorkSession[]
+  quotas           FactoryQuota[]
+  taskOverrides    FactoryScheduleTaskOverride[]
+}
+
+/// BOM: which station produces which element per booth model, incl. the
+/// glue → cure → assembly process steps.
+model FactoryStationElementRequirement {
+  id                 String  @id @default(cuid())
+  boothModelId       String
+  stationId          String
+  elementId          String
+  qtyPerBooth        Int
+  processNameBg      String?
+  sequenceOrder      Int     @default(0)
+  processStep        String  @default("single")
+  dependsOnElementId String?
+  minDelayMinutes    Int     @default(0)
+  displayNameBg      String?
+
+  boothModel       FactoryBoothModel @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
+  station          FactoryStation    @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  element          FactoryElement    @relation(fields: [elementId], references: [id], onDelete: Cascade)
+  dependsOnElement FactoryElement?   @relation("FactoryElementDependency", fields: [dependsOnElementId], references: [id], onDelete: SetNull)
+
+  @@unique([boothModelId, stationId, elementId, processStep])
+}
+
+model FactoryColor {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameBg    String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  batchColors      FactoryProductionBatchColor[]
+  workItems        FactoryStationWorkItem[]
+  productionEvents FactoryProductionEvent[]
+  workSessions     FactoryWorkSession[]
+}
+
+/// Booth options (Privacy Foil, etc.)
+model FactoryBoothOption {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameBg    String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  unitOptions FactoryProductionBoothUnitOption[]
+}
+
+model FactoryProductionBatch {
+  id              String             @id @default(cuid())
+  batchCode       String             @unique
+  boothModelId    String
+  priority        Int                @default(1)
+  plannedStart    DateTime?          @db.Date
+  plannedEnd      DateTime?          @db.Date
+  status          FactoryBatchStatus @default(PLANNED)
+  scheduleVersion Int                @default(1)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  boothModel       FactoryBoothModel             @relation(fields: [boothModelId], references: [id])
+  colors           FactoryProductionBatchColor[]
+  workItems        FactoryStationWorkItem[]
+  productionEvents FactoryProductionEvent[]
+  workSessions     FactoryWorkSession[]
+  quotas           FactoryQuota[]
+  taskOverrides    FactoryScheduleTaskOverride[]
+
+  @@index([status])
+}
+
+/// Batch × colour lines.
+model FactoryProductionBatchColor {
+  id             String @id @default(cuid())
+  batchId        String
+  colorId        String
+  targetBoothQty Int
+  usBooths       Int    @default(0)
+
+  batch      FactoryProductionBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  color      FactoryColor                 @relation(fields: [colorId], references: [id])
+  boothUnits FactoryProductionBoothUnit[]
+
+  @@unique([batchId, colorId])
+}
+
+/// Individual booth units (auto-generated + overrides).
+model FactoryProductionBoothUnit {
+  id           String  @id @default(cuid())
+  batchColorId String
+  unitIndex    Int
+  unitLabel    String
+  isUs         Boolean @default(false)
+  notes        String?
+  status       String  @default("active")
+
+  batchColor       FactoryProductionBatchColor        @relation(fields: [batchColorId], references: [id], onDelete: Cascade)
+  options          FactoryProductionBoothUnitOption[]
+  workItems        FactoryStationWorkItem[]
+  productionEvents FactoryProductionEvent[]
+  workSessions     FactoryWorkSession[]
+
+  @@unique([batchColorId, unitIndex])
+  @@unique([batchColorId, unitLabel])
+}
+
+model FactoryProductionBoothUnitOption {
+  boothUnitId String
+  optionId    String
+
+  boothUnit FactoryProductionBoothUnit @relation(fields: [boothUnitId], references: [id], onDelete: Cascade)
+  option    FactoryBoothOption         @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([boothUnitId, optionId])
+}
+
+/// Materialized work queue per station. Rebuilt wholesale by the
+/// materializeWorkItems service (was a Postgres RPC on Supabase).
+/// qtyRemaining (was a generated column) is computed in the app:
+/// max(0, qtyRequired - qtyGood).
+model FactoryStationWorkItem {
+  id               String    @id @default(cuid())
+  batchId          String
+  stationId        String
+  elementId        String
+  colorId          String?
+  boothUnitId      String?
+  qtyRequired      Int       @default(0)
+  qtyGood          Int       @default(0)
+  qtyScrap         Int       @default(0)
+  priority         Int       @default(1)
+  dueDate          DateTime? @db.Date
+  processStep      String    @default("single")
+  displayNameBg    String?
+  cureDelayMinutes Int       @default(0)
+  updatedAt        DateTime  @updatedAt
+
+  batch     FactoryProductionBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  station   FactoryStation              @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  element   FactoryElement              @relation(fields: [elementId], references: [id], onDelete: Cascade)
+  color     FactoryColor?               @relation(fields: [colorId], references: [id])
+  boothUnit FactoryProductionBoothUnit? @relation(fields: [boothUnitId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, stationId, elementId, colorId, boothUnitId, processStep])
+  @@index([stationId])
+  @@index([batchId])
+}
+
+/// Production events from floor kiosks (idempotent on clientEventId).
+model FactoryProductionEvent {
+  id            String    @id @default(cuid())
+  stationId     String
+  batchId       String
+  elementId     String
+  colorId       String?
+  boothUnitId   String?
+  isUs          Boolean   @default(false)
+  qtyGood       Int       @default(0)
+  qtyScrap      Int       @default(0)
+  processStep   String    @default("single")
+  recordedAt    DateTime  @default(now())
+  clientEventId String    @unique
+  workSessionId String?
+  syncedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  station     FactoryStation              @relation(fields: [stationId], references: [id])
+  batch       FactoryProductionBatch      @relation(fields: [batchId], references: [id])
+  element     FactoryElement              @relation(fields: [elementId], references: [id])
+  color       FactoryColor?               @relation(fields: [colorId], references: [id])
+  boothUnit   FactoryProductionBoothUnit? @relation(fields: [boothUnitId], references: [id])
+  workSession FactoryWorkSession?         @relation(fields: [workSessionId], references: [id])
+
+  @@index([stationId, recordedAt(sort: Desc)])
+  @@index([batchId])
+}
+
+model FactoryWorkSession {
+  id          String    @id @default(cuid())
+  stationId   String
+  batchId     String
+  elementId   String
+  colorId     String?
+  boothUnitId String?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+
+  station   FactoryStation              @relation(fields: [stationId], references: [id])
+  batch     FactoryProductionBatch      @relation(fields: [batchId], references: [id])
+  element   FactoryElement              @relation(fields: [elementId], references: [id])
+  color     FactoryColor?               @relation(fields: [colorId], references: [id])
+  boothUnit FactoryProductionBoothUnit? @relation(fields: [boothUnitId], references: [id])
+  events    FactoryProductionEvent[]
+}
+
+model FactoryQuota {
+  id        String             @id @default(cuid())
+  period    FactoryQuotaPeriod
+  targetQty Int
+  stationId String?
+  elementId String?
+  batchId   String?
+  validFrom DateTime?          @db.Date
+  validTo   DateTime?          @db.Date
+  createdAt DateTime           @default(now())
+
+  station FactoryStation?         @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  element FactoryElement?         @relation(fields: [elementId], references: [id], onDelete: Cascade)
+  batch   FactoryProductionBatch? @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+/// Manual station assignment and task order on the schedule board.
+model FactoryScheduleTaskOverride {
+  batchId           String
+  elementId         String
+  processStep       String   @default("single")
+  assignedStationId String
+  sortOrder         Int      @default(0)
+  updatedAt         DateTime @updatedAt
+
+  batch           FactoryProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  element         FactoryElement         @relation(fields: [elementId], references: [id], onDelete: Cascade)
+  assignedStation FactoryStation         @relation(fields: [assignedStationId], references: [id], onDelete: Cascade)
+
+  @@id([batchId, elementId, processStep])
+  @@index([assignedStationId, sortOrder])
+}
+
+/// Kiosk devices (token-authenticated floor PCs).
+model FactoryDevice {
+  id          String    @id @default(cuid())
+  stationId   String
+  deviceToken String    @unique @default(uuid())
+  label       String?
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  station FactoryStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+}
+
+model FactoryCncMachineMap {
+  id          String @id @default(cuid())
+  machineName String @unique
+  stationId   String
+
+  station FactoryStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+}
+
+model FactoryCncDailySummary {
+  id              String   @id @default(cuid())
+  stationId       String
+  summaryDate     DateTime @db.Date
+  activeFraction  Decimal? @db.Decimal(6, 4)
+  partsCount      Int      @default(0)
+  intervalMinutes Int?
+  pctFromBest     Decimal? @db.Decimal(6, 4)
+  rawJson         Json?
+  createdAt       DateTime @default(now())
+
+  station FactoryStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@unique([stationId, summaryDate])
+}
+
+// ---- Factory planning (owner: factory) ----
+
+/// Physical factory site (AKS / VAR / KAZ) with its planning spreadsheet.
+model FactorySite {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  nameBg        String
+  spreadsheetId String
+  createdAt     DateTime @default(now())
+
+  planningBatches FactoryPlanningBatch[]
+  importRuns      FactoryPlanningImportRun[]
+}
+
+model FactoryBoothVersionCode {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  description         String   @default("")
+  productionFileLinks Json?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+
+  planningBatches FactoryPlanningBatch[]
+  planningBooths  FactoryPlanningBooth[]
+}
+
+model FactoryBatchProductionOption {
+  id        String  @id @default(cuid())
+  code      String  @unique
+  labelBg   String
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  planningBatches FactoryPlanningBatch[]
+}
+
+model FactoryBoothProductionOption {
+  id        String  @id @default(cuid())
+  code      String  @unique
+  labelBg   String
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+
+  planningBooths FactoryPlanningBooth[]
+}
+
+model FactoryPlanningBatch {
+  id                      String                     @id @default(cuid())
+  siteId                  String
+  batchCode               String                     @unique
+  modelCode               String?
+  status                  FactoryPlanningBatchStatus @default(PROPOSED)
+  priority                Int                        @default(1)
+  plannedStart            DateTime?                  @db.Date
+  plannedEnd              DateTime?                  @db.Date
+  originalDeadline        DateTime?                  @db.Date
+  isUsMarket              Boolean?
+  boothVersionCodeId      String?
+  batchProductionOptionId String?
+  productionMonth         Int?
+  productionYear          Int?
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+
+  site                  FactorySite                   @relation(fields: [siteId], references: [id])
+  model                 FactoryBoothModel?            @relation(fields: [modelCode], references: [code])
+  boothVersionCode      FactoryBoothVersionCode?      @relation(fields: [boothVersionCodeId], references: [id])
+  batchProductionOption FactoryBatchProductionOption? @relation(fields: [batchProductionOptionId], references: [id])
+  booths                FactoryPlanningBooth[]
+
+  @@index([siteId])
+  @@index([productionYear, productionMonth])
+}
+
+model FactoryPlanningBooth {
+  id                      String                      @id @default(cuid())
+  planningBatchId         String
+  boothUniqueId           String                      @unique
+  modelCode               String?
+  colorCode               String
+  boothVersionCodeId      String?
+  isUsMarket              Boolean                     @default(false)
+  status                  FactoryPlanningBoothStatus?
+  boothProductionOptionId String?
+  sortOrder               Int                         @default(0)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+
+  planningBatch         FactoryPlanningBatch          @relation(fields: [planningBatchId], references: [id], onDelete: Cascade)
+  model                 FactoryBoothModel?            @relation(fields: [modelCode], references: [code])
+  boothVersionCode      FactoryBoothVersionCode?      @relation(fields: [boothVersionCodeId], references: [id])
+  boothProductionOption FactoryBoothProductionOption? @relation(fields: [boothProductionOptionId], references: [id])
+
+  @@index([planningBatchId])
+}
+
+model FactoryPlanningImportRun {
+  id              String    @id @default(cuid())
+  siteId          String
+  productionMonth Int
+  productionYear  Int
+  /// 'import' | 'export' | 'factory_sync'
+  direction       String
+  rowsRead        Int?
+  rowsUpserted    Int?
+  rowsSkipped     Int?
+  errors          Json?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  site FactorySite @relation(fields: [siteId], references: [id])
 }
