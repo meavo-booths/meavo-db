@@ -878,13 +878,17 @@ model DealContact {
 model QuoteLineItem {
   id            String        @id @default(cuid())
   dealId        String
-  productId     String
+  /// Null on custom one-off lines, which carry their name in customName.
+  productId     String?
   quantity      Int           @default(1)
   unitPrice     Decimal       @db.Decimal(12, 2)
   finish        ProductFinish @default(WHITE_STOCK)
   finishDetails String        @default("")
   description   String        @default("")
   sortOrder     Int           @default(0)
+
+  /// Free-text item name for custom one-off lines (productId is null).
+  customName String @default("")
 
   /// Set on add-on lines that are attached to a booth line (extra warranty,
   /// chair, ...). Attached add-ons render under their booth on the PDF and
@@ -894,8 +898,8 @@ model QuoteLineItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  deal    Deal    @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  deal    Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   parent QuoteLineItem?  @relation("LineItemAddOns", fields: [parentLineItemId], references: [id], onDelete: SetNull)
   addOns QuoteLineItem[] @relation("LineItemAddOns")
