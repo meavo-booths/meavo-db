@@ -2028,3 +2028,247 @@ model FactoryPlanningImportRun {
 
   site FactorySite @relation(fields: [siteId], references: [id])
 }
+
+// ---- RP spare parts / panels (owner: rp) ----
+
+enum RpUrgency {
+  standard
+  urgent
+}
+
+enum RpSheetSyncStatus {
+  pending
+  processing
+  synced
+  failed
+}
+
+enum RpLineItemKind {
+  panel
+  part
+}
+
+enum RpLineItemFulfillment {
+  pending
+  from_stock
+  shipped
+}
+
+enum RpStockReplacementSummary {
+  none
+  partial
+  full
+}
+
+/// Rep.Parts26 header row.
+model RpRequest {
+  id                      String                    @id @default(cuid())
+  rpNum                   String                    @unique @map("rp_num")
+  entryDate               DateTime?                 @map("entry_date")
+  market                  String?
+  userId                  String?                   @map("user_id")
+  issueType               String?                   @map("issue_type")
+  urgency                 RpUrgency                 @default(standard)
+  model                   String?
+  boothId                 String?                   @map("booth_id")
+  color                   String?
+  itemType                String?                   @map("item_type")
+  quantity                String?
+  partRpCode              String?                   @map("part_rp_code")
+  partDescription         String?                   @map("part_description")
+  clarifications          String?
+  notes                   String?
+  client                  String?
+  address                 String?
+  recipient               String?
+  phone                   String?
+  email                   String?
+  reviewGroup             String?                   @map("review_group")
+  shipMethod              String?                   @map("ship_method")
+  status                  String?
+  tracking                String?
+  readyMarkedAt           DateTime?                 @map("ready_marked_at")
+  payer                   String?
+  currentLocation         String?                   @map("current_location")
+  workshopNote            String?                   @map("workshop_note")
+  orderSentAt             DateTime?                 @map("order_sent_at")
+  dueDate                 DateTime?                 @map("due_date")
+  itemsJson               Json?                     @map("items_json")
+  stockReplacementSummary RpStockReplacementSummary @default(none) @map("stock_replacement_summary")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  syncedAt                DateTime?                 @map("synced_at")
+
+  lineItems               RpLineItem[]
+  internalProductionRows  RpInternalProductionRow[] @relation("RpSourceRequest")
+  photos                  RpPhoto[]
+
+  @@index([status])
+  @@index([reviewGroup])
+  @@index([urgency])
+  @@index([orderSentAt])
+  @@map("rp_requests")
+}
+
+model RpLineItem {
+  id                 String                @id @default(cuid())
+  rpRequestId        String                @map("rp_request_id")
+  lineIndex          Int                   @map("line_index")
+  kind               RpLineItemKind
+  panelName          String?               @map("panel_name")
+  quantity           String?
+  partRpCode         String?               @map("part_rp_code")
+  partDescription    String?               @map("part_description")
+  clarifications     String?
+  fulfillment        RpLineItemFulfillment @default(pending)
+  takenFromStockAt   DateTime?             @map("taken_from_stock_at")
+  takenFromStockBy   String?               @map("taken_from_stock_by")
+  stockReplacementIpId String?             @unique @map("stock_replacement_ip_id")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  rpRequest          RpRequest             @relation(fields: [rpRequestId], references: [id], onDelete: Cascade)
+  stockReplacementIp RpInternalProductionRow? @relation("LineItemStockIp", fields: [stockReplacementIpId], references: [id], onDelete: SetNull)
+  sourceIpRows       RpInternalProductionRow[] @relation("LineItemSource")
+
+  @@unique([rpRequestId, lineIndex])
+  @@index([rpRequestId])
+  @@index([fulfillment])
+  @@map("rp_line_items")
+}
+
+/// Internal Production sheet row.
+model RpInternalProductionRow {
+  id                   String     @id @default(cuid())
+  ipNum                String     @unique @map("ip_num")
+  entryDate            DateTime?  @map("entry_date")
+  deadline             DateTime?
+  ownerEmail           String?    @map("owner_email")
+  reason               String?
+  urgency              RpUrgency  @default(standard)
+  model                String?
+  batch                String?
+  colour               String?
+  panel                String?
+  panelClarification   String?    @map("panel_clarification")
+  notes                String?
+  warehouse            String?
+  factory              String?
+  status               String?
+  tracking             String?
+  payer                String?
+  sourceRpId           String?    @map("source_rp_id")
+  sourceLineItemId     String?    @unique @map("source_line_item_id")
+  sourceRpNum          String?    @map("source_rp_num")
+  workshopNote         String?    @map("workshop_note")
+  orderSentAt          DateTime?  @map("order_sent_at")
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+  syncedAt             DateTime?  @map("synced_at")
+
+  sourceRp             RpRequest?  @relation("RpSourceRequest", fields: [sourceRpId], references: [id], onDelete: SetNull)
+  sourceLineItem       RpLineItem? @relation("LineItemSource", fields: [sourceLineItemId], references: [id], onDelete: SetNull)
+  stockForLineItem     RpLineItem? @relation("LineItemStockIp")
+
+  @@index([sourceRpNum])
+  @@index([sourceRpId])
+  @@index([factory])
+  @@map("internal_production_rows")
+}
+
+model RpPhoto {
+  id          String   @id @default(cuid())
+  rpRequestId String   @map("rp_request_id")
+  storageKey  String   @map("storage_key")
+  url         String
+  label       String?
+  mimeType    String?  @map("mime_type")
+  byteSize    Int?     @map("byte_size")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rpRequest RpRequest @relation(fields: [rpRequestId], references: [id], onDelete: Cascade)
+
+  @@index([rpRequestId])
+  @@map("rp_photos")
+}
+
+model RpAutomationState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("automation_state")
+}
+
+model RpSheetRowMap {
+  id         String   @id @default(cuid())
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  sheetName  String   @map("sheet_name")
+  rowNumber  Int      @map("row_number")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([entityType, entityId, sheetName])
+  @@map("sheet_row_map")
+}
+
+model RpSheetSyncOutbox {
+  id          String            @id @default(cuid())
+  entityType  String            @map("entity_type")
+  entityId    String            @map("entity_id")
+  operation   String
+  payloadJson Json?             @map("payload_json")
+  status      RpSheetSyncStatus @default(pending)
+  attempts    Int               @default(0)
+  lastError   String?           @map("last_error")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  processedAt DateTime?         @map("processed_at")
+
+  @@index([status])
+  @@map("sheet_sync_outbox")
+}
+
+model RpAddressBookEntry {
+  id        String   @id @default(cuid())
+  client    String
+  address   String?
+  recipient String?
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([client])
+  @@map("address_book_entries")
+}
+
+model RpPanelCatalogOption {
+  id        String @id @default(cuid())
+  category  String?
+  value     String
+  sortOrder Int    @default(0) @map("sort_order")
+
+  @@map("panel_catalog_options")
+}
+
+model RpExportTrackingRow {
+  id           String   @id @default(cuid())
+  rpNum        String   @unique @map("rp_num")
+  trackingText String?  @map("tracking_text")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("export_tracking_rows")
+}
+
+model RpNumSequence {
+  id        String @id
+  lastValue Int    @default(0) @map("last_value")
+
+  @@map("rp_num_sequences")
+}
+
+model RpIpNumSequence {
+  id        String @id
+  lastValue Int    @default(0) @map("last_value")
+
+  @@map("ip_num_sequences")
+}

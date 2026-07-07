@@ -6,6 +6,7 @@ Canonical Prisma schema for the shared MEAVO Postgres (Neon) database used by:
 - **Vacation Tracker (hols)** — vacation requests, allowances, public holidays
 - **meavo-assembly** — assemblies, partners, questionnaires, resources
 - **meavo-sales** — clients, deals, quotes, products, booth units
+- **meavo-rp** — spare-parts / panel requests, internal production, sheet sync
 
 ## The rule
 
@@ -57,6 +58,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Notifications | gateway | NotificationOutbox, NotificationDelivery, NotificationEventSetting |
 | Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine |
 | Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryProduction*, FactoryStationWorkItem, FactoryWorkSession, FactoryQuota, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite |
+| Spare parts / panels (RP) | rp | RpRequest, RpLineItem, RpInternalProductionRow, RpPhoto, RpSheetSyncOutbox, RpSheetRowMap, RpAddressBookEntry, RpPanelCatalogOption, RpExportTrackingRow, RpNumSequence, RpIpNumSequence, RpAutomationState |
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.
