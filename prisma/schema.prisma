@@ -2272,3 +2272,97 @@ model RpIpNumSequence {
 
   @@map("ip_num_sequences")
 }
+
+// ---- Clock-In (owner: clock app, clock.meavo.app) ----
+
+enum ClockPendingStatus {
+  PENDING
+  ASSIGNED
+  EXPIRED
+}
+
+enum ClockEventType {
+  IN
+  OUT
+}
+
+model ClockWorker {
+  id        String   @id @default(cuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cardBindings ClockCardBinding[]
+  clockEvents  ClockEvent[]
+
+  @@map("clock_workers")
+}
+
+model ClockCardBinding {
+  id            String    @id @default(cuid())
+  uid           String
+  workerId      String    @map("worker_id")
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  deactivatedAt DateTime? @map("deactivated_at")
+
+  worker ClockWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@index([uid, active])
+  @@map("clock_card_bindings")
+}
+
+model ClockPendingUid {
+  id        String             @id @default(cuid())
+  uid       String
+  stationId String             @map("station_id")
+  tappedAt  String             @map("tapped_at")
+  expiresAt DateTime           @map("expires_at")
+  status    ClockPendingStatus @default(PENDING)
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  unassignedTaps ClockUnassignedTap[]
+
+  @@index([status])
+  @@index([uid])
+  @@map("clock_pending_uids")
+}
+
+model ClockUnassignedTap {
+  id           String   @id @default(cuid())
+  uid          String
+  stationId    String   @map("station_id")
+  tappedAt     String   @map("tapped_at")
+  pendingUidId String?  @map("pending_uid_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  pendingUid ClockPendingUid? @relation(fields: [pendingUidId], references: [id])
+
+  @@map("clock_unassigned_taps")
+}
+
+model ClockEvent {
+  id             String         @id @default(cuid())
+  uid            String
+  workerId       String         @map("worker_id")
+  stationId      String         @map("station_id")
+  eventType      ClockEventType @map("event_type")
+  tappedAt       String         @map("tapped_at")
+  idempotencyKey String         @unique @map("idempotency_key")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  worker ClockWorker @relation(fields: [workerId], references: [id])
+
+  @@index([tappedAt])
+  @@index([workerId])
+  @@map("clock_events")
+}
+
+model ClockWorkSettings {
+  id         String @id @default("default")
+  shiftStart String @default("07:30") @map("shift_start")
+  shiftEnd   String @default("16:30") @map("shift_end")
+  timezone   String @default("Europe/Sofia")
+
+  @@map("clock_work_settings")
+}
