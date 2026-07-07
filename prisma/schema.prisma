@@ -833,6 +833,12 @@ model Deal {
   /// Where the booths get installed — distinct from registeredAddress (invoicing).
   assemblyAddress String @default("")
 
+  /// Electrical socket fitting for the booth(s), e.g. UK, EU, US.
+  socketType String @default("")
+
+  /// Customer target delivery date agreed on the quote.
+  targetDeliveryDate DateTime? @db.Date
+
   /// Set by sales once the deal is invoiced/paid and can be scheduled for
   /// assembly. Surfaces the deal on the assembly app's Ready deals page.
   readyToAssemble Boolean @default(false)
