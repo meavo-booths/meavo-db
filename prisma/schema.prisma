@@ -708,6 +708,7 @@ enum PaymentStatus {
 enum DealContactKind {
   MAIN
   FINANCE
+  ASSEMBLY
 }
 
 enum ProductFinish {
