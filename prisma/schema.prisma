@@ -740,6 +740,8 @@ model Product {
   description String      @default("")
   imageUrl    String?
   listPrice   Decimal     @default(0) @db.Decimal(12, 2)
+  /// Catalog list price currency (EUR, GBP, CZK, or USD).
+  currency    String      @default("EUR")
   isActive    Boolean     @default(true)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -752,8 +754,22 @@ model Product {
   addOnRestrictions ProductAddOnRestriction[] @relation("AddOnRestrictions")
   boothAddOns       ProductAddOnRestriction[] @relation("BoothAddOns")
 
+  /// Markets and client types this product is sold for. No rows = all combinations.
+  availability ProductAvailability[]
+
   @@index([isActive])
   @@index([kind])
+}
+
+model ProductAvailability {
+  productId  String
+  market     String
+  clientType DealClientType
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([productId, market, clientType])
+  @@index([market, clientType])
 }
 
 model ProductAddOnRestriction {
@@ -835,6 +851,8 @@ model Deal {
   paymentStatus     PaymentStatus  @default(UNPAID)
   paymentPoDate     DateTime?      @db.Date
   currency          String         @default("EUR")
+  /// 1 unit of `currency` equals this many EUR (e.g. 1 GBP = 1.17 EUR).
+  exchangeRateToEur Decimal?       @db.Decimal(18, 8)
   notes             String         @default("")
 
   /// Where the booths get installed — distinct from registeredAddress (invoicing).
@@ -898,6 +916,8 @@ model QuoteLineItem {
   productId     String?
   quantity      Int           @default(1)
   unitPrice     Decimal       @db.Decimal(12, 2)
+  /// EUR equivalent of unitPrice at save time (for reporting). Null on legacy rows.
+  unitPriceEur  Decimal?      @db.Decimal(12, 2)
   finish        ProductFinish @default(WHITE_STOCK)
   finishDetails String        @default("")
   description   String        @default("")
