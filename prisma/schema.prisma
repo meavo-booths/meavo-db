@@ -779,10 +779,17 @@ model Client {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
+  /// Parent company (e.g. "Amazon"). Null = standalone client or group head.
+  parentClientId String?
+
+  parent       Client?  @relation("ClientHierarchy", fields: [parentClientId], references: [id], onDelete: SetNull)
+  subsidiaries Client[] @relation("ClientHierarchy")
+
   contacts ClientContact[]
   deals    Deal[]
 
   @@index([name])
+  @@index([parentClientId])
 }
 
 model ClientContact {
