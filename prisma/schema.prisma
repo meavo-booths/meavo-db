@@ -732,11 +732,34 @@ enum ProductKind {
   ADDON
 }
 
+enum BoothProductFamily {
+  SOHO
+  WORKSTATION
+  CAMDEN_2
+  CAMDEN_4
+  HAVEN_ONE
+  HAVEN_FOCUS
+  HAVEN_2
+  HAVEN_4
+}
+
+enum AddOnProductFamily {
+  BAR_STOOL
+  OFFICE_CHAIR
+  MONITOR
+  MONITOR_WITH_CAMERA
+  WARRANTY
+  ASSEMBLY
+  MOVING_SERVICE
+}
+
 model Product {
   id          String      @id @default(cuid())
   name        String
-  sku         String      @unique
+  version     String      @default("")
   kind        ProductKind @default(BOOTH)
+  boothFamily BoothProductFamily?
+  addOnFamily AddOnProductFamily?
   description String      @default("")
   imageUrl    String?
   listPrice   Decimal     @default(0) @db.Decimal(12, 2)
@@ -749,16 +772,17 @@ model Product {
   lineItems  QuoteLineItem[]
   boothUnits BoothUnit[]
 
-  /// For ADDON products: booths this add-on is limited to. No rows = the
-  /// add-on can be attached to any booth.
-  addOnRestrictions ProductAddOnRestriction[] @relation("AddOnRestrictions")
-  boothAddOns       ProductAddOnRestriction[] @relation("BoothAddOns")
+  /// For ADDON products: booth families this add-on is limited to. No rows = any family.
+  familyRestrictions ProductAddOnFamilyRestriction[]
 
   /// Markets and client types this product is sold for. No rows = all combinations.
   availability ProductAvailability[]
 
   @@index([isActive])
   @@index([kind])
+  @@index([version])
+  @@index([boothFamily])
+  @@index([addOnFamily])
 }
 
 model ProductAvailability {
@@ -772,15 +796,14 @@ model ProductAvailability {
   @@index([market, clientType])
 }
 
-model ProductAddOnRestriction {
-  addOnId String
-  boothId String
+model ProductAddOnFamilyRestriction {
+  addOnId     String
+  boothFamily BoothProductFamily
 
-  addOn Product @relation("AddOnRestrictions", fields: [addOnId], references: [id], onDelete: Cascade)
-  booth Product @relation("BoothAddOns", fields: [boothId], references: [id], onDelete: Cascade)
+  addOn Product @relation(fields: [addOnId], references: [id], onDelete: Cascade)
 
-  @@id([addOnId, boothId])
-  @@index([boothId])
+  @@id([addOnId, boothFamily])
+  @@index([boothFamily])
 }
 
 model Client {
