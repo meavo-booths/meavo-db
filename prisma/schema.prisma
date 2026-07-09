@@ -874,7 +874,13 @@ model Deal {
   usState           String         @default("")
   clientName        String
   registeredAddress String         @default("")
+  /// Client website URL snapshot at quote time.
+  website           String         @default("")
   vatNumber         String         @default("")
+  /// Customer purchase order reference.
+  clientPo          String         @default("")
+  /// End customer when the billed client is an agency or intermediary.
+  actualClient      String         @default("")
   clientType        DealClientType @default(DIRECT)
   paymentTerms      PaymentTerms   @default(UPFRONT_100)
   paymentStatus     PaymentStatus  @default(UNPAID)
