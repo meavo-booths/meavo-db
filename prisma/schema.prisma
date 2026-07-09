@@ -68,6 +68,11 @@ model User {
   mrpStockMovementsCreated   MrpStockMovement[]   @relation("MrpStockMovementCreator")
   mrpProductionBatchesCreated MrpProductionBatch[] @relation("MrpProductionBatchCreator")
   mrpInventoryCountsCreated  MrpInventoryCount[]  @relation("MrpInventoryCountCreator")
+
+  taskWorkspacesOwned   TaskWorkspace[]       @relation("TaskWorkspaceOwner")
+  taskWorkspaceMembers  TaskWorkspaceMember[]
+  tasksCreated          Task[]                @relation("TaskCreator")
+  taskAssignments       TaskAssignee[]
 }
 
 model Account {
@@ -97,6 +102,7 @@ model Team {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   members         TeamMember[]
+  taskWorkspaces  TaskWorkspace[]
 }
 
 model TeamMember {
@@ -2422,4 +2428,146 @@ model ClockWorkSettings {
   timezone   String @default("Europe/Sofia")
 
   @@map("clock_work_settings")
+}
+
+// ---- Task management (owner: tasks) ----
+
+enum TaskWorkspaceType {
+  PERSONAL
+  TEAM
+  SHARED
+}
+
+enum TaskWorkspaceRole {
+  VIEWER
+  EDITOR
+}
+
+enum TaskPriority {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskLinkedApp {
+  SALES
+  FACTORY
+  RP
+  ASSEMBLY
+  MRP
+}
+
+model TaskWorkspace {
+  id         String            @id @default(cuid())
+  type       TaskWorkspaceType
+  name       String
+  ownerId    String
+  teamId     String?
+  color      String            @default("#EEDCDC")
+  archivedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  owner   User                  @relation("TaskWorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  team    Team?                 @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  members TaskWorkspaceMember[]
+  columns TaskBoardColumn[]
+  tasks   Task[]
+
+  @@index([ownerId])
+  @@index([teamId])
+  @@index([type])
+}
+
+model TaskWorkspaceMember {
+  id          String            @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        TaskWorkspaceRole @default(VIEWER)
+  createdAt   DateTime          @default(now())
+
+  workspace TaskWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model TaskBoardColumn {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace TaskWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  @@index([workspaceId, position])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  workspaceId String
+  columnId    String?
+  position    Int          @default(0)
+  title       String
+  description String       @default("")
+  priority    TaskPriority @default(NONE)
+  status      TaskStatus   @default(OPEN)
+  startDate   DateTime?    @db.Date
+  dueDate     DateTime?    @db.Date
+  createdById String
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  workspace   TaskWorkspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  column      TaskBoardColumn?   @relation(fields: [columnId], references: [id], onDelete: SetNull)
+  createdBy   User               @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  assignees   TaskAssignee[]
+  externalLinks TaskExternalLink[]
+
+  @@index([workspaceId, columnId, position])
+  @@index([dueDate])
+  @@index([workspaceId, status])
+  @@index([createdById])
+}
+
+model TaskAssignee {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([userId])
+}
+
+model TaskExternalLink {
+  id           String        @id @default(cuid())
+  taskId       String
+  linkedApp    TaskLinkedApp
+  entityType   String
+  entityId     String
+  displayLabel String        @default("")
+  deepLinkUrl  String        @default("")
+  createdAt    DateTime      @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([linkedApp, entityType, entityId])
 }

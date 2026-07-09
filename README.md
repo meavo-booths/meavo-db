@@ -59,6 +59,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine |
 | Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryProduction*, FactoryStationWorkItem, FactoryWorkSession, FactoryQuota, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite |
 | Spare parts / panels (RP) | rp | RpRequest, RpLineItem, RpInternalProductionRow, RpPhoto, RpSheetSyncOutbox, RpSheetRowMap, RpAddressBookEntry, RpPanelCatalogOption, RpExportTrackingRow, RpNumSequence, RpIpNumSequence, RpAutomationState |
+| Task management | tasks | TaskWorkspace, TaskWorkspaceMember, TaskBoardColumn, Task, TaskAssignee, TaskExternalLink |
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.
