@@ -31,6 +31,12 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+DO $$ BEGIN
+  CREATE TYPE "TaskAssigneeScope" AS ENUM ('MEMBER', 'EXTERNAL');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 CREATE TABLE IF NOT EXISTS "TaskWorkspace" (
   "id" TEXT NOT NULL,
   "type" "TaskWorkspaceType" NOT NULL,
@@ -85,6 +91,7 @@ CREATE TABLE IF NOT EXISTS "TaskAssignee" (
   "id" TEXT NOT NULL,
   "taskId" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
+  "scope" "TaskAssigneeScope" NOT NULL DEFAULT 'MEMBER',
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "TaskAssignee_pkey" PRIMARY KEY ("id")
 );
@@ -113,6 +120,7 @@ CREATE INDEX IF NOT EXISTS "Task_workspaceId_status_idx" ON "Task"("workspaceId"
 CREATE INDEX IF NOT EXISTS "Task_createdById_idx" ON "Task"("createdById");
 CREATE UNIQUE INDEX IF NOT EXISTS "TaskAssignee_taskId_userId_key" ON "TaskAssignee"("taskId", "userId");
 CREATE INDEX IF NOT EXISTS "TaskAssignee_userId_idx" ON "TaskAssignee"("userId");
+CREATE INDEX IF NOT EXISTS "TaskAssignee_userId_scope_idx" ON "TaskAssignee"("userId", "scope");
 CREATE INDEX IF NOT EXISTS "TaskExternalLink_taskId_idx" ON "TaskExternalLink"("taskId");
 CREATE INDEX IF NOT EXISTS "TaskExternalLink_linkedApp_entityType_entityId_idx" ON "TaskExternalLink"("linkedApp", "entityType", "entityId");
 

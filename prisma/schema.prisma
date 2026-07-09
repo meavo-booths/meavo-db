@@ -2471,6 +2471,11 @@ enum TaskLinkedApp {
   MRP
 }
 
+enum TaskAssigneeScope {
+  MEMBER
+  EXTERNAL
+}
+
 model TaskWorkspace {
   id         String            @id @default(cuid())
   type       TaskWorkspaceType
@@ -2550,16 +2555,18 @@ model Task {
 }
 
 model TaskAssignee {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   taskId    String
   userId    String
-  createdAt DateTime @default(now())
+  scope     TaskAssigneeScope @default(MEMBER)
+  createdAt DateTime          @default(now())
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
   @@index([userId])
+  @@index([userId, scope])
 }
 
 model TaskExternalLink {
