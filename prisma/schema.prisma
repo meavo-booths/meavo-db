@@ -1042,6 +1042,15 @@ model XeroMarketTaxMapping {
   updatedAt DateTime @updatedAt
 }
 
+/// Admin-confirmed mapping from a Sales market to the Xero revenue account
+/// invoice lines post to (e.g. UK -> 200 "Sales UK").
+model XeroMarketAccountMapping {
+  market      String   @id
+  accountCode String
+  accountName String   @default("")
+  updatedAt   DateTime @updatedAt
+}
+
 /// Singleton row (id = "xero") with integration-wide state. Auto-invoicing
 /// on deal win stays disabled until setupConfirmedAt is set by an admin.
 model XeroIntegrationSettings {
@@ -1050,6 +1059,8 @@ model XeroIntegrationSettings {
   defaultBrandingThemeId   String?
   defaultBrandingThemeName String?
   defaultTaxType           String?
+  defaultAccountCode       String?
+  defaultAccountName       String?
   lastXeroItemsSyncAt      DateTime?
   updatedAt                DateTime  @updatedAt
 }
