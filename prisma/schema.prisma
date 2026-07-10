@@ -775,6 +775,13 @@ model Product {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
+  // Xero item link (owner: sales) — set by the Xero items import. Commercial
+  // fields (name, description, listPrice, isActive) are overwritten on sync
+  // for linked products; kind, images and restrictions stay Sales-owned.
+  xeroItemId   String?   @unique
+  xeroItemCode String?
+  xeroSyncedAt DateTime?
+
   lineItems  QuoteLineItem[]
   boothUnits BoothUnit[]
 
@@ -823,6 +830,10 @@ model Client {
   isVip             Boolean        @default(false)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+
+  /// Xero contact link (owner: sales) — cached after find-or-create so
+  /// invoices for repeat clients reuse the same Xero contact.
+  xeroContactId String?
 
   /// Parent company (e.g. "Amazon"). Null = standalone client or group head.
   parentClientId String?
@@ -910,6 +921,13 @@ model Deal {
   sheetRows      Json?
   sheetSyncedAt  DateTime?
   sheetSyncError String?
+
+  // Xero invoice bookkeeping (owner: sales) — set when the won deal is
+  // exported to Xero as a draft ACCREC invoice.
+  xeroInvoiceId     String?   @unique
+  xeroInvoiceNumber String?
+  xeroSyncedAt      DateTime?
+  xeroSyncError     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -999,6 +1017,41 @@ model BoothUnit {
   @@index([dealId])
   @@index([status])
   @@index([productId])
+}
+
+// ---- Xero integration (owner: sales) ----
+
+/// Admin-confirmed mapping from a Sales market to the Xero Branding Theme
+/// (invoice template) used for that market's invoices. Theme name is cached
+/// for display; the ID is what the Xero API needs.
+model XeroMarketThemeMapping {
+  market            String   @id
+  brandingThemeId   String
+  brandingThemeName String
+  updatedAt         DateTime @updatedAt
+}
+
+/// Admin-confirmed mapping from a Sales market to the Xero TaxType applied
+/// to invoice line items (e.g. UK -> OUTPUT2 for 20% VAT).
+model XeroMarketTaxMapping {
+  market    String   @id
+  taxType   String
+  taxName   String   @default("")
+  /// Effective rate cached from Xero for display, e.g. 20.000.
+  taxRate   Decimal? @db.Decimal(6, 3)
+  updatedAt DateTime @updatedAt
+}
+
+/// Singleton row (id = "xero") with integration-wide state. Auto-invoicing
+/// on deal win stays disabled until setupConfirmedAt is set by an admin.
+model XeroIntegrationSettings {
+  id                       String    @id @default("xero")
+  setupConfirmedAt         DateTime?
+  defaultBrandingThemeId   String?
+  defaultBrandingThemeName String?
+  defaultTaxType           String?
+  lastXeroItemsSyncAt      DateTime?
+  updatedAt                DateTime  @updatedAt
 }
 
 // ---- Notifications (owner: gateway) ----
