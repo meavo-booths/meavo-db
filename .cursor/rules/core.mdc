@@ -1,0 +1,50 @@
+---
+description: Core stack, layout, and guardrails for meavo-db
+alwaysApply: true
+---
+
+Environment: schema-only npm package (`@meavo/db`) — the canonical Prisma 6 schema for the ONE shared Neon Postgres database used by all MEAVO apps. This is the only repo allowed to alter the database. There is no app code here.
+
+## Stack
+
+- Prisma 6 schema (`prisma/schema.prisma`) → PostgreSQL (Neon), ~125 models / ~54 enums
+- Consumed by app repos as a git dependency pinned to a tag (`#v0.x.y`); they run `prisma generate` only
+- Idempotent SQL scripts in `scripts/` for targeted/destructive migrations via `prisma db execute`
+- No framework, tests, lint, or build — safety net is `npm run validate` + `npm run diff`
+
+## Do NOT
+
+- Run `prisma migrate dev` or introduce a migrations directory — this repo uses `db push` + idempotent `scripts/*.sql`.
+- Run `db:push` without first reading `npm run diff` output — a push after removing/renaming models drops other apps' live tables.
+- Rename/delete another app's models, fields, or enums without checking every consumer (ownership table in `README.md`).
+- Duplicate identity tables — foreign-key to the shared gateway `User` / `Team` models.
+- Add app code, seeds, or generated client output — schema + SQL scripts only.
+- Point consumer apps at untagged commits — tag `v0.x.y` first.
+- Commit `.env` or secret values.
+
+## Code layout
+
+| Area | Path |
+|------|------|
+| Canonical schema (organized by owning app) | `prisma/schema.prisma` |
+| Targeted / destructive SQL migrations | `scripts/*.sql` |
+| Table-ownership matrix | `README.md` |
+| Migration safety + domain docs | `docs/data-model.md`, `docs/architecture.md` |
+| One-off audits / migration notes | `docs/` (e.g. `docs/factory-audit.md`) |
+
+## Data flow
+
+```
+edit prisma/schema.prisma → npm run validate → npm run diff (review SQL!)
+  → npm run db:push  (or prisma db execute --file scripts/x.sql for destructive steps)
+  → commit + bump package.json version + git tag v0.x.y + push --tags
+  → bump @meavo/db git ref in each affected app → npm install + prisma generate → redeploy
+```
+
+Every schema change must end with a tagged release and a dependency bump in the affected apps — an applied-but-untagged schema leaves apps generating stale clients.
+
+## Docs for agents
+
+- `AGENTS.md` — quick orientation
+- `docs/data-model.md` — domains, ownership, naming, migration safety (primary doc)
+- `docs/architecture.md` — consumption model, release flow

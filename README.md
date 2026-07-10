@@ -63,3 +63,13 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.
+
+## Documentation
+
+| Doc | Purpose |
+| --- | --- |
+| [AGENTS.md](AGENTS.md) | Quick orientation for AI coding agents |
+| [.cursor/rules/](.cursor/rules/) | Always-on Cursor rules |
+| [docs/data-model.md](docs/data-model.md) | Domains, ownership, migration safety |
+| [docs/architecture.md](docs/architecture.md) | Consumption model and release flow |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | PR and release process |
