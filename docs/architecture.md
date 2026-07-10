@@ -5,7 +5,6 @@ Schema-only npm package holding the canonical Prisma schema for the one shared M
 **Further reading:**
 - [data-model.md](data-model.md) — domains, ownership, migration safety (primary doc)
 - [AGENTS.md](../AGENTS.md) — quick orientation for AI agents
-- [factory-audit.md](factory-audit.md) — Meavo-Factory Supabase → Neon migration audit
 
 ## Sibling repos (meavo-booths)
 
@@ -18,7 +17,7 @@ Every app in the org consumes this package; none may alter the schema themselves
 | `assembly` | Owns assembly/questionnaire sections |
 | `sales` | Owns sales + Xero sections |
 | `meavo-mrp` | Owns MRP section |
-| `Meavo-Factory` | Owns factory floor + planning sections (migrated from Supabase — see factory-audit.md) |
+| `Meavo-Factory` | Owns factory floor + planning sections (migration audit lives in that private repo) |
 | `meavo-rp` | Owns RP spare-parts section (legacy snake_case tables via `@@map`) |
 | `meavo-clock` | Owns Clock-In section |
 | `meavo-tasks` | Owns task management section |
