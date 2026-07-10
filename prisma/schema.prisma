@@ -1362,6 +1362,8 @@ model MrpDocument {
   @@index([status])
   @@index([createdAt])
   @@index([contentHash])
+  @@index([createdById, createdAt(sort: Desc)])
+  @@index([createdById, contentHash])
 }
 
 /// Line items extracted from a document.
@@ -1427,6 +1429,8 @@ model MrpSyncAttempt {
 
   @@index([documentId])
   @@index([status])
+  @@index([documentId, isCurrent])
+  @@index([attemptedAt(sort: Desc)])
 }
 
 /// Physical warehouse / site (Аксаково, Варна, Казанлък, …).
@@ -1498,6 +1502,7 @@ model MrpMaterial {
 
   @@index([name])
   @@index([isActive])
+  @@index([isActive, name])
 }
 
 /// Material code referenced in ElementBOM but not yet in materials master.
@@ -1548,6 +1553,7 @@ model MrpManufacturingBatch {
   exceptionLinks MrpRecipeExceptionBatchLink[]
 
   @@index([status])
+  @@index([name])
 }
 
 /// One booth row on batch Опаковане tab.
@@ -1600,6 +1606,7 @@ model MrpRecipeException {
   batchLinks  MrpRecipeExceptionBatchLink[]
 
   @@index([status])
+  @@index([status, createdAt(sort: Desc)])
 }
 
 /// Models / colour / market where an exception applies (null = wildcard).
@@ -1684,7 +1691,6 @@ model MrpStockMovement {
   @@index([warehouseId])
   @@index([materialId])
   @@index([effectiveAt])
-  @@index([movementType])
 }
 
 /// On-hand quantity per warehouse × material (cache; ledger is source of truth).
