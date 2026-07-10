@@ -505,6 +505,7 @@ model Assembly {
   @@index([installPartnerId])
   @@index([assemblyDate])
   @@index([linkedDealId])
+  @@index([market, assemblyDate])
 }
 
 model Questionnaire {
