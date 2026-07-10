@@ -1,0 +1,21 @@
+---
+description: Meavo security standards for meavo-db
+alwaysApply: true
+---
+
+# Security rules — Meavo org standard
+
+Org standard (see STANDARDS.md §4 in meavo-agent-templates). This repo is a schema-only package with no runtime surface, so most app-level rules do not apply here — deviations are listed at the bottom.
+
+## What applies to this repo
+
+- **No secrets** in committed files: `.env` holds the live `DATABASE_URL` and is gitignored; document env var *names* only.
+- **The live shared DB is the blast radius.** Treat `npm run db:push` and `prisma db execute` like production deploys: review `npm run diff` SQL before applying, and prefer idempotent `scripts/*.sql` for anything destructive.
+- **Identity models are org infrastructure.** `User`, `Account`, `Team`, `ToolCard`, `ToolCardAccess`, `LoginThrottle` back auth for every app — changes there need gateway-owner review.
+- New satellite apps registered here must follow the org pattern: domain models in their own section, a `ToolCard` seed (kind `APP_ACCESS`, stable `seed-<app>-tool` ID handled in gateway seeds), FKs to shared `User`/`Team`.
+- Schema must keep supporting org auth standards consumed by apps: `LoginThrottle` for login throttling, `NotificationOutbox` for satellite enqueue-only email.
+
+## Repo-specific deviations
+
+- No middleware, layouts, Server Actions, API routes, sessions, cron, uploads, or headers — those STANDARDS.md §4 rules apply to the consuming apps, not here.
+- No tool-card gate: this repo has no login. Access control is GitHub repo permissions plus possession of `DATABASE_URL`.
