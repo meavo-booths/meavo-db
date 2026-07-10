@@ -27,7 +27,7 @@ Quick orientation for AI agents working in this repo. Read this before exploring
 | Apply schema to the live DB | `npm run db:push` — read [docs/data-model.md](docs/data-model.md) § Applying changes first |
 | Destructive / targeted migration | idempotent SQL like `scripts/add-task-tables.sql`, via `prisma db execute` |
 | Release + consumer bump process | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| Factory app migration context | `docs/neon-migration-audit.md` in the private Meavo-Factory repo |
+| Factory app migration context | `neon-migration-audit.md` in the private Meavo-Factory repo (not in this repo) |
 | Auth & access | N/A — no runtime code; identity models live in the gateway section of the schema |
 | DB schema | `prisma/schema.prisma` (this repo IS the owner) |
 | Tests | N/A — `npm run validate` + `npm run diff` are the safety net |
