@@ -77,6 +77,7 @@ model User {
 
   notifications           Notification[]
   notificationPreferences UserNotificationPreference[]
+  appAnnouncements        AppAnnouncement[]            @relation("AppAnnouncementAuthor")
 }
 
 model Account {
@@ -1162,6 +1163,22 @@ model UserNotificationPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventType, channel])
+}
+
+// Company-wide announcements shown on gateway's Library "App News" page.
+// Body uses the gateway template-markup dialect (headings, bullets, **bold**).
+model AppAnnouncement {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  publishedAt DateTime @default(now())
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation("AppAnnouncementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([publishedAt])
 }
 
 // ---- Manufacturing / MRP (owner: mrp) ----
