@@ -778,6 +778,8 @@ model Product {
   /// Catalog list price currency (EUR, GBP, CZK, or USD).
   currency    String      @default("EUR")
   isActive    Boolean     @default(true)
+  /// Zamp product tax code for US sales tax (Sales-owned; never overwritten by Xero sync).
+  taxCode     String      @default("")
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -887,8 +889,13 @@ model Deal {
   dealDate          DateTime       @db.Date
   salesRep          String         @default("")
   market            String         @default("")
-  /// US state for deals in the US market (free text, e.g. "California").
+  /// US state for deals in the US market (2-letter code, e.g. "CA").
   usState           String         @default("")
+  /// Structured US ship-to address for Zamp sales tax (US market only).
+  shipToLine1       String         @default("")
+  shipToLine2       String         @default("")
+  shipToCity        String         @default("")
+  shipToZip         String         @default("")
   clientName        String
   registeredAddress String         @default("")
   /// Client website URL snapshot at quote time.
@@ -934,6 +941,13 @@ model Deal {
   xeroInvoiceNumber String?
   xeroSyncedAt      DateTime?
   xeroSyncError     String?
+
+  // US sales tax (Zamp) — computed on quote save for US market; committed on win.
+  usTaxAmount       Decimal        @default(0) @db.Decimal(12, 2)
+  usTaxDetail       Json?
+  zampTransactionId String?        @unique
+  zampSyncedAt      DateTime?
+  zampSyncError     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
