@@ -1071,16 +1071,40 @@ model XeroMarketAccountMapping {
   updatedAt   DateTime @updatedAt
 }
 
+/// Per-US-state Xero mapping for won deals in the US market (theme, revenue
+/// account, exempt tax type, and sales-tax liability account).
+model XeroUsStateMapping {
+  state               String   @id
+  brandingThemeId     String   @default("")
+  brandingThemeName   String   @default("")
+  accountCode         String   @default("")
+  accountName         String   @default("")
+  taxType             String   @default("")
+  taxName             String   @default("")
+  taxRate             Decimal? @db.Decimal(6, 3)
+  taxAccountCode      String   @default("")
+  taxAccountName      String   @default("")
+  updatedAt           DateTime @updatedAt
+}
+
 /// Singleton row (id = "xero") with integration-wide state. Auto-invoicing
 /// on deal win stays disabled until setupConfirmedAt is set by an admin.
 model XeroIntegrationSettings {
   id                       String    @id @default("xero")
   setupConfirmedAt         DateTime?
+  usSetupConfirmedAt       DateTime?
   defaultBrandingThemeId   String?
   defaultBrandingThemeName String?
   defaultTaxType           String?
   defaultAccountCode       String?
   defaultAccountName       String?
+  defaultUsBrandingThemeId   String?
+  defaultUsBrandingThemeName String?
+  defaultUsAccountCode       String?
+  defaultUsAccountName       String?
+  defaultUsTaxType           String?
+  defaultUsTaxAccountCode    String?
+  defaultUsTaxAccountName    String?
   lastXeroItemsSyncAt      DateTime?
   updatedAt                DateTime  @updatedAt
 }
