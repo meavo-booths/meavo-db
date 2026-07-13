@@ -1071,6 +1071,15 @@ model XeroMarketAccountMapping {
   updatedAt   DateTime @updatedAt
 }
 
+/// Reference mapping from a Sales market to the expected Xero VAT/tax liability
+/// account. Not used in invoice export today — VAT posts via Tax Type.
+model XeroMarketTaxAccountMapping {
+  market          String   @id
+  taxAccountCode  String
+  taxAccountName  String   @default("")
+  updatedAt       DateTime @updatedAt
+}
+
 /// Per-US-state Xero mapping for won deals in the US market (theme, revenue
 /// account, exempt tax type, and sales-tax liability account).
 model XeroUsStateMapping {
@@ -1098,6 +1107,8 @@ model XeroIntegrationSettings {
   defaultTaxType           String?
   defaultAccountCode       String?
   defaultAccountName       String?
+  defaultTaxAccountCode    String?
+  defaultTaxAccountName    String?
   defaultUsBrandingThemeId   String?
   defaultUsBrandingThemeName String?
   defaultUsAccountCode       String?
