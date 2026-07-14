@@ -723,6 +723,13 @@ enum DealContactKind {
   ASSEMBLY
 }
 
+enum DeliveryType {
+  DI
+  DELIVERY_ONLY
+  KERBSIDE
+  FACTORY_PICKUP
+}
+
 enum ProductFinish {
   CUSTOM
   WHITE_STOCK
@@ -922,6 +929,9 @@ model Deal {
 
   /// Customer target delivery date agreed on the quote.
   targetDeliveryDate DateTime? @db.Date
+
+  /// How the booth is delivered to the customer site.
+  deliveryType DeliveryType?
 
   /// Set by sales once the deal is invoiced/paid and can be scheduled for
   /// assembly. Surfaces the deal on the assembly app's Ready deals page.
