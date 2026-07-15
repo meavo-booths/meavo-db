@@ -756,6 +756,12 @@ enum ProductFinish {
   LDF_COLOUR
 }
 
+enum LineItemDiscountType {
+  NONE
+  FIXED
+  PERCENT
+}
+
 enum BoothUnitStatus {
   PLANNED
   IN_PRODUCTION
@@ -1039,6 +1045,10 @@ model QuoteLineItem {
 
   /// Free-text item name for custom one-off lines (productId is null).
   customName String @default("")
+
+  /// List/catalog unit price before discount; see discountType/discountValue.
+  discountType  LineItemDiscountType @default(NONE)
+  discountValue Decimal              @default(0) @db.Decimal(12, 2)
 
   /// Set on add-on lines that are attached to a booth line (extra warranty,
   /// chair, ...). Attached add-ons render under their booth on the PDF and
