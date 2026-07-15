@@ -980,6 +980,9 @@ model Deal {
   /// User opted out of creating a Xero invoice at win time (manual DealID path).
   skipXeroOnWin Boolean @default(false)
 
+  /// Set when payment status was first synced from Xero; locks manual payment edits.
+  xeroPaymentSyncedAt DateTime?
+
   // US sales tax (Zamp) — computed on quote save for US market; committed on win.
   usTaxAmount       Decimal        @default(0) @db.Decimal(12, 2)
   usTaxDetail       Json?
