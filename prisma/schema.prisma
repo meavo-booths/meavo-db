@@ -651,6 +651,13 @@ enum ResourceType {
   IMAGE
 }
 
+enum ResourceCategoryKind {
+  DELIVERY
+  ASSEMBLY
+  ELECTRICAL
+  REPAIRS
+}
+
 model Resource {
   id             String       @id @default(cuid())
   title          String
@@ -663,8 +670,9 @@ model Resource {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  models ResourceBoothModel[]
-  files  ResourceFile[]
+  models     ResourceBoothModel[]
+  categories ResourceCategory[]
+  files      ResourceFile[]
 
   @@index([sortOrder])
 }
@@ -675,6 +683,7 @@ model ResourceFile {
   storageKey String
   fileName   String
   mimeType   String
+  caption    String   @default("")
   createdAt  DateTime @default(now())
 
   resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
@@ -689,6 +698,15 @@ model ResourceBoothModel {
   resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
   @@id([resourceId, boothModel])
+}
+
+model ResourceCategory {
+  resourceId String
+  category   ResourceCategoryKind
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@id([resourceId, category])
 }
 
 // ---- Sales (owner: sales) ----
