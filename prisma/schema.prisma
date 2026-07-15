@@ -721,6 +721,7 @@ enum PaymentTerms {
   UPFRONT_100
   SPLIT_50_50
   NET_30
+  NET_7
 }
 
 enum DealClientType {
@@ -969,6 +970,15 @@ model Deal {
   xeroInvoiceNumber String?
   xeroSyncedAt      DateTime?
   xeroSyncError     String?
+
+  /// Second Xero invoice for 50/50 deals (final 50% balance).
+  xeroFinalInvoiceId     String?   @unique
+  xeroFinalInvoiceNumber String?
+  xeroFinalSyncedAt      DateTime?
+  xeroFinalSyncError     String?
+
+  /// User opted out of creating a Xero invoice at win time (manual DealID path).
+  skipXeroOnWin Boolean @default(false)
 
   // US sales tax (Zamp) — computed on quote save for US market; committed on win.
   usTaxAmount       Decimal        @default(0) @db.Decimal(12, 2)
