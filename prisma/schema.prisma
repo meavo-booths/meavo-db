@@ -749,6 +749,14 @@ enum DeliveryType {
   FACTORY_PICKUP
 }
 
+enum LostReason {
+  PROJECT_CANCELLED
+  CHOSE_COMPETITOR
+  PRICE_TOO_HIGH
+  NO_REPLY
+  OTHER
+}
+
 enum ProductFinish {
   CUSTOM
   WHITE_STOCK
@@ -964,6 +972,11 @@ model Deal {
 
   wonAt           DateTime?
   createdByUserId String?
+
+  /// Set when a quote is marked LOST; required for new losses (legacy rows may be null).
+  lostReason     LostReason?
+  /// Free-text detail when lostReason = OTHER.
+  lostReasonNote String      @default("")
 
   // Ops File write-back bookkeeping
   sheetRows      Json?
