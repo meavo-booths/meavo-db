@@ -2431,6 +2431,8 @@ model RpRequest {
   tracking                String?
   readyMarkedAt           DateTime?                 @map("ready_marked_at")
   payer                   String?
+  /** When true, auto payer formula must not overwrite a manual admin override. */
+  payerManual             Boolean                   @default(false) @map("payer_manual")
   currentLocation         String?                   @map("current_location")
   workshopNote            String?                   @map("workshop_note")
   orderSentAt             DateTime?                 @map("order_sent_at")
