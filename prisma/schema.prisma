@@ -2617,6 +2617,28 @@ model RpIpNumSequence {
   @@map("ip_num_sequences")
 }
 
+/// Append-only lifecycle / status history for RP requests and IP rows.
+/// Polymorphic (entityType + entityId) — same pattern as RpSheetSyncOutbox.
+/// eventType examples: created, status_changed, ready_marked, ready_reverted,
+/// order_sent, shipped, cancelled, delayed, stock_taken, edited,
+/// workshop_note, due_date_changed.
+model RpLifecycleEvent {
+  id          String   @id @default(cuid())
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  eventType   String   @map("event_type")
+  fromStatus  String?  @map("from_status")
+  toStatus    String?  @map("to_status")
+  /// Actor email when known; null for cron / system automations.
+  actorEmail  String?  @map("actor_email")
+  payload     Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, createdAt])
+  @@index([eventType])
+  @@map("rp_lifecycle_events")
+}
+
 // ---- Clock-In (owner: clock app, clock.meavo.app) ----
 
 enum ClockPendingStatus {

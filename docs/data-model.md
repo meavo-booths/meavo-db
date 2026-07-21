@@ -19,7 +19,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting` |
 | Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpElementBomLine`, ... |
 | Factory floor + planning | factory | `FactoryStation*`, `FactoryProduction*`, `FactoryPlanning*`, `FactoryDevice`, `FactoryCnc*` |
-| RP spare parts / panels | rp | `RpRequest`, `RpLineItem`, `RpInternalProductionRow`, `RpSheetSyncOutbox`, ... |
+| RP spare parts / panels | rp | `RpRequest`, `RpLineItem`, `RpInternalProductionRow`, `RpSheetSyncOutbox`, `RpLifecycleEvent`, ... |
 | Clock-In | clock | clock-in / time-tracking models (see `scripts/add-clock-tables.sql`) |
 | Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink` |
 
