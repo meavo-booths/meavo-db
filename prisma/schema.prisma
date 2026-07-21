@@ -730,6 +730,8 @@ enum DealClientType {
   DIRECT
   AGENCY
   COWORKING
+  SHOWROOM
+  INTERNAL_EVENTS
 }
 
 enum PaymentStatus {
