@@ -78,6 +78,8 @@ model User {
   notifications           Notification[]
   notificationPreferences UserNotificationPreference[]
   appAnnouncements        AppAnnouncement[]            @relation("AppAnnouncementAuthor")
+
+  clockWorker                ClockWorker?
 }
 
 model Account {
@@ -2597,6 +2599,7 @@ enum ClockPendingStatus {
   PENDING
   ASSIGNED
   EXPIRED
+  CANCELLED
 }
 
 enum ClockEventType {
@@ -2608,8 +2611,10 @@ model ClockWorker {
   id        String   @id @default(cuid())
   name      String
   active    Boolean  @default(true)
+  userId    String?  @unique @map("user_id")
   createdAt DateTime @default(now()) @map("created_at")
 
+  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   cardBindings ClockCardBinding[]
   clockEvents  ClockEvent[]
 
