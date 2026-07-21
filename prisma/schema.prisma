@@ -1019,12 +1019,32 @@ model Deal {
   lineItems  QuoteLineItem[]
   boothUnits BoothUnit[]
   assemblies Assembly[]
+  auditLogs  DealAuditLog[]
 
   @@index([stage])
   @@index([dealDate])
   @@index([clientName])
   @@index([clientId])
   @@index([readyToAssemble])
+}
+
+/// Field-level change history for Deal rows (sales app). Written automatically
+/// by the sales app's Prisma extension; actorUserId is the acting User.id
+/// (no FK, mirroring Deal.createdByUserId) and is null for non-request writes.
+model DealAuditLog {
+  id          String   @id @default(cuid())
+  dealId      String
+  actorUserId String?
+  /// "CREATE" | "UPDATE" | "DELETE".
+  action      String
+  /// Array of { field, before, after } entries for the changed fields.
+  changes     Json
+  createdAt   DateTime @default(now())
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, createdAt])
+  @@index([actorUserId])
 }
 
 model DealContact {
