@@ -1604,6 +1604,8 @@ model MrpBoothElement {
   sheetHeader  String
   /// Short label used in ElementBOM CSV (may differ from sheetHeader).
   simpleName   String
+  /// Shared panel identity with FactoryElement.code (CEILING, DOOR, …).
+  code         String?
   sortOrder    Int      @default(0)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
@@ -1616,6 +1618,8 @@ model MrpBoothElement {
 
   @@unique([boothModelId, sheetHeader])
   @@unique([boothModelId, simpleName])
+  @@unique([boothModelId, code])
+  @@index([code])
 }
 
 /// Raw materials tracked for stock (Zeron item code optional until API sync).
@@ -2462,6 +2466,8 @@ model RpLineItem {
   lineIndex          Int                   @map("line_index")
   kind               RpLineItemKind
   panelName          String?               @map("panel_name")
+  /// Shared panel identity (FactoryElement.code / MrpBoothElement.code).
+  panelCode          String?               @map("panel_code")
   quantity           String?
   partRpCode         String?               @map("part_rp_code")
   partDescription    String?               @map("part_description")
@@ -2485,6 +2491,7 @@ model RpLineItem {
   @@index([rpRequestId])
   @@index([fulfillment])
   @@index([materialsDeductedAt])
+  @@index([panelCode])
   @@map("rp_line_items")
 }
 
@@ -2503,11 +2510,13 @@ model RpPartMrpMap {
   @@map("rp_part_mrp_maps")
 }
 
-/// Maps RP spare-panel names (per booth model) to MRP booth elements / recipes.
+/// Maps RP spare-panel names/codes (per booth model) to MRP booth elements / recipes.
 model RpPanelMrpMap {
   id              String   @id @default(cuid())
   boothModelName  String   @map("booth_model_name")
   rpPanelName     String   @map("rp_panel_name")
+  /// Preferred join key (= FactoryElement.code / MrpBoothElement.code).
+  panelCode       String?  @map("panel_code")
   boothElementId  String   @map("booth_element_id")
   notes           String?
   createdAt       DateTime @default(now()) @map("created_at")
@@ -2517,7 +2526,47 @@ model RpPanelMrpMap {
 
   @@unique([boothModelName, rpPanelName])
   @@index([boothElementId])
+  @@index([panelCode])
   @@map("rp_panel_mrp_maps")
+}
+
+/// Neon-owned spare parts catalogue (replaces Google Sheet at runtime).
+model RpSparePart {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  description      String
+  category         String
+  subcategory      String?
+  booth            String?
+  photoUrl         String?  @map("photo_url")
+  imageFileId      String?  @map("image_file_id")
+  standardPartner  Boolean  @default(false) @map("standard_partner")
+  isActive         Boolean  @default(true) @map("is_active")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([isActive])
+  @@map("rp_spare_parts")
+}
+
+/// Selectable replacement panels per booth model (replaces Google panel-options sheet).
+model RpPanelOption {
+  id             String   @id @default(cuid())
+  boothModelCode String   @map("booth_model_code")
+  panelCode      String   @map("panel_code")
+  labelBg        String   @map("label_bg")
+  sortOrder      Int      @default(0) @map("sort_order")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([boothModelCode, panelCode])
+  @@index([boothModelCode])
+  @@index([panelCode])
+  @@index([isActive])
+  @@map("rp_panel_options")
 }
 
 /// Internal Production sheet row.
