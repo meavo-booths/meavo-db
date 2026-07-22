@@ -1612,6 +1612,7 @@ model MrpBoothElement {
   bomLines          MrpElementBomLine[]
   batchUnitElements MrpBatchUnitElement[]
   exceptionChanges  MrpRecipeExceptionLineChange[]
+  rpPanelMaps       RpPanelMrpMap[]
 
   @@unique([boothModelId, sheetHeader])
   @@unique([boothModelId, simpleName])
@@ -1637,6 +1638,7 @@ model MrpMaterial {
   stockBalances        MrpStockBalance[]
   productionBatchLines MrpProductionBatchLine[]
   inventoryCounts      MrpInventoryCount[]
+  rpPartMaps           RpPartMrpMap[]
 
   @@index([name])
   @@index([isActive])
@@ -2468,6 +2470,10 @@ model RpLineItem {
   takenFromStockAt   DateTime?             @map("taken_from_stock_at")
   takenFromStockBy   String?               @map("taken_from_stock_by")
   stockReplacementIpId String?             @unique @map("stock_replacement_ip_id")
+  /// When MRP stock was deducted for this line (idempotency).
+  materialsDeductedAt    DateTime? @map("materials_deducted_at")
+  /// Last deduction failure message (cleared on success).
+  materialsDeductionError String?  @map("materials_deduction_error")
   createdAt          DateTime              @default(now()) @map("created_at")
   updatedAt          DateTime              @updatedAt @map("updated_at")
 
@@ -2478,7 +2484,40 @@ model RpLineItem {
   @@unique([rpRequestId, lineIndex])
   @@index([rpRequestId])
   @@index([fulfillment])
+  @@index([materialsDeductedAt])
   @@map("rp_line_items")
+}
+
+/// Maps RP spare-part 4-digit codes to MRP materials for stock deduction.
+model RpPartMrpMap {
+  id            String   @id @default(cuid())
+  partRpCode    String   @unique @map("part_rp_code")
+  mrpMaterialId String   @map("mrp_material_id")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  mrpMaterial MrpMaterial @relation(fields: [mrpMaterialId], references: [id], onDelete: Restrict)
+
+  @@index([mrpMaterialId])
+  @@map("rp_part_mrp_maps")
+}
+
+/// Maps RP spare-panel names (per booth model) to MRP booth elements / recipes.
+model RpPanelMrpMap {
+  id              String   @id @default(cuid())
+  boothModelName  String   @map("booth_model_name")
+  rpPanelName     String   @map("rp_panel_name")
+  boothElementId  String   @map("booth_element_id")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  boothElement MrpBoothElement @relation(fields: [boothElementId], references: [id], onDelete: Restrict)
+
+  @@unique([boothModelName, rpPanelName])
+  @@index([boothElementId])
+  @@map("rp_panel_mrp_maps")
 }
 
 /// Internal Production sheet row.
