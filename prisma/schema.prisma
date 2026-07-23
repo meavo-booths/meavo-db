@@ -78,6 +78,7 @@ model User {
   notifications           Notification[]
   notificationPreferences UserNotificationPreference[]
   appAnnouncements        AppAnnouncement[]            @relation("AppAnnouncementAuthor")
+  usefulLinksCreated      UsefulLink[]                 @relation("UsefulLinkAuthor")
 
   clockWorker                ClockWorker?
 }
@@ -309,6 +310,23 @@ model LibraryAsset {
   createdAt    DateTime @default(now())
 
   uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+}
+
+// Library "Useful links" tiles — HTTPS bookmarks with optional icon (not ToolCards).
+model UsefulLink {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  url         String
+  iconKey     String?
+  sortOrder   Int      @default(0)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation("UsefulLinkAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([sortOrder])
 }
 
 model GatewaySheetRecord {
