@@ -3043,26 +3043,24 @@ enum FeatureRequestStatus {
 }
 
 model FeatureRequest {
-  id             String                    @id @default(cuid())
-  title          String
-  description    String                    @default("")
-  type           FeatureRequestType
-  importance     FeatureRequestImportance  @default(IMPORTANT)
-  status         FeatureRequestStatus      @default(PENDING)
-  relatedApps    String[]
-  authorId       String
-  attachmentKey  String?
-  attachmentName String?
-  attachmentMime String?
-  canonicalId    String?
-  voteCount      Int                       @default(0)
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
+  id          String                   @id @default(cuid())
+  title       String
+  description String                   @default("")
+  type        FeatureRequestType
+  importance  FeatureRequestImportance @default(IMPORTANT)
+  status      FeatureRequestStatus     @default(PENDING)
+  relatedApps String[]
+  authorId    String
+  canonicalId String?
+  voteCount   Int                      @default(0)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
 
-  author     User                 @relation("FeatureRequestAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-  canonical  FeatureRequest?      @relation("FeatureRequestDuplicates", fields: [canonicalId], references: [id], onDelete: SetNull)
-  duplicates FeatureRequest[]     @relation("FeatureRequestDuplicates")
-  votes      FeatureRequestVote[]
+  author      User                       @relation("FeatureRequestAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  canonical   FeatureRequest?            @relation("FeatureRequestDuplicates", fields: [canonicalId], references: [id], onDelete: SetNull)
+  duplicates  FeatureRequest[]           @relation("FeatureRequestDuplicates")
+  votes       FeatureRequestVote[]
+  attachments FeatureRequestAttachment[]
 
   @@index([status, voteCount])
   @@index([createdAt])
@@ -3070,6 +3068,20 @@ model FeatureRequest {
   @@index([importance])
   @@index([authorId])
   @@index([canonicalId])
+}
+
+model FeatureRequestAttachment {
+  id         String   @id @default(cuid())
+  requestId  String
+  storageKey String
+  fileName   String
+  mimeType   String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  request FeatureRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
 }
 
 model FeatureRequestVote {
