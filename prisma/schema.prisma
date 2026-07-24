@@ -74,6 +74,8 @@ model User {
   taskWorkspaceMembers  TaskWorkspaceMember[]
   tasksCreated          Task[]                @relation("TaskCreator")
   taskAssignments       TaskAssignee[]
+  taskCommentsAuthored  TaskComment[]         @relation("TaskCommentAuthor")
+  taskCommentsResolved  TaskComment[]         @relation("TaskCommentResolver")
 
   notifications           Notification[]
   notificationPreferences UserNotificationPreference[]
@@ -2953,6 +2955,7 @@ model Task {
   createdBy   User               @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
   assignees   TaskAssignee[]
   externalLinks TaskExternalLink[]
+  comments    TaskComment[]
 
   @@index([workspaceId, columnId, position])
   @@index([dueDate])
@@ -2989,4 +2992,26 @@ model TaskExternalLink {
 
   @@index([taskId])
   @@index([linkedApp, entityType, entityId])
+}
+
+model TaskComment {
+  id           String    @id @default(cuid())
+  taskId       String
+  authorId     String
+  parentId     String?
+  body         String
+  resolvedAt   DateTime?
+  resolvedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  task       Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author     User         @relation("TaskCommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  parent     TaskComment? @relation("TaskCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    TaskComment[] @relation("TaskCommentReplies")
+  resolvedBy User?        @relation("TaskCommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
 }
