@@ -747,6 +747,7 @@ enum PaymentTerms {
   SPLIT_50_50
   NET_30
   NET_7
+  NET_60
 }
 
 enum DealClientType {
