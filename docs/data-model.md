@@ -22,7 +22,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | RP spare parts / panels | rp | `RpRequest`, `RpLineItem`, `RpInternalProductionRow`, `RpSheetSyncOutbox`, `RpLifecycleEvent`, ... |
 | Clock-In | clock | clock-in / time-tracking models (see `scripts/add-clock-tables.sql`) |
 | Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink` |
-| Feature requests | requests | `FeatureRequest`, `FeatureRequestVote` |
+| Feature requests | requests | `FeatureRequest`, `FeatureRequestVote` (`FeatureRequestType`, `FeatureRequestImportance`) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 

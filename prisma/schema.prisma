@@ -3022,9 +3022,16 @@ model TaskComment {
 // ---- Feature requests (owner: requests, requests.meavo.app) ----
 
 enum FeatureRequestType {
+  BIG_NEW_FEATURE
+  SMALL_NEW_FEATURE
+  CHANGE
   BUG_FIX
-  SMALL_FEATURE
-  BIG_FEATURE
+}
+
+enum FeatureRequestImportance {
+  CRITICAL
+  IMPORTANT
+  NICE_TO_HAVE
 }
 
 enum FeatureRequestStatus {
@@ -3036,20 +3043,21 @@ enum FeatureRequestStatus {
 }
 
 model FeatureRequest {
-  id             String               @id @default(cuid())
+  id             String                    @id @default(cuid())
   title          String
-  description    String
+  description    String                    @default("")
   type           FeatureRequestType
-  status         FeatureRequestStatus @default(PENDING)
+  importance     FeatureRequestImportance  @default(IMPORTANT)
+  status         FeatureRequestStatus      @default(PENDING)
   relatedApps    String[]
   authorId       String
   attachmentKey  String?
   attachmentName String?
   attachmentMime String?
   canonicalId    String?
-  voteCount      Int                  @default(0)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  voteCount      Int                       @default(0)
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
 
   author     User                 @relation("FeatureRequestAuthor", fields: [authorId], references: [id], onDelete: Restrict)
   canonical  FeatureRequest?      @relation("FeatureRequestDuplicates", fields: [canonicalId], references: [id], onDelete: SetNull)
@@ -3059,6 +3067,7 @@ model FeatureRequest {
   @@index([status, voteCount])
   @@index([createdAt])
   @@index([type])
+  @@index([importance])
   @@index([authorId])
   @@index([canonicalId])
 }
