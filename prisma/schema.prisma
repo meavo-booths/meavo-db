@@ -1052,6 +1052,8 @@ model Deal {
   // US sales tax (Zamp) — computed on quote save for US market; committed on win.
   usTaxAmount       Decimal        @default(0) @db.Decimal(12, 2)
   usTaxDetail       Json?
+  /// Manual opt-out of US sales tax (resellers / special cases); skips Zamp.
+  usTaxExempt       Boolean        @default(false)
   zampTransactionId String?        @unique
   zampSyncedAt      DateTime?
   zampSyncError     String?
