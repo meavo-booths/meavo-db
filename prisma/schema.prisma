@@ -81,6 +81,7 @@ model User {
   notificationPreferences UserNotificationPreference[]
   appAnnouncements        AppAnnouncement[]            @relation("AppAnnouncementAuthor")
   usefulLinksCreated      UsefulLink[]                 @relation("UsefulLinkAuthor")
+  libraryVideosCreated    LibraryVideo[]               @relation("LibraryVideoAuthor")
 
   clockWorker                ClockWorker?
 
@@ -331,6 +332,24 @@ model UsefulLink {
 
   createdBy User? @relation("UsefulLinkAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@index([sortOrder])
+}
+
+// Library "Videos" — Loom embeds grouped by fixed app category (gateway-owned).
+model LibraryVideo {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  loomUrl     String
+  category    String
+  sortOrder   Int      @default(0)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation("LibraryVideoAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([category, sortOrder])
   @@index([sortOrder])
 }
 
