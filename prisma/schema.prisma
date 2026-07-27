@@ -1061,12 +1061,13 @@ model Deal {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client     Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  contacts   DealContact[]
-  lineItems  QuoteLineItem[]
-  boothUnits BoothUnit[]
-  assemblies Assembly[]
-  auditLogs  DealAuditLog[]
+  client      Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  contacts    DealContact[]
+  lineItems   QuoteLineItem[]
+  boothUnits  BoothUnit[]
+  assemblies  Assembly[]
+  auditLogs   DealAuditLog[]
+  attachments DealAttachment[]
 
   @@index([stage])
   @@index([dealDate])
@@ -1092,6 +1093,27 @@ model DealAuditLog {
 
   @@index([dealId, createdAt])
   @@index([actorUserId])
+}
+
+/// Files attached to a quote/deal (sales app) — customer POs, floor plans,
+/// signed paperwork. Stored in the sales attachments Vercel Blob store
+/// (private); storageKey is the blob pathname, never a public URL.
+model DealAttachment {
+  id         String @id @default(cuid())
+  dealId     String
+  storageKey String
+  fileName   String
+  mimeType   String
+  /// File size in bytes, read back from the blob store after upload.
+  size       Int
+  /// Acting User.id (no FK, mirroring DealAuditLog.actorUserId).
+  uploadedByUserId String?
+
+  createdAt DateTime @default(now())
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId])
 }
 
 model DealContact {
