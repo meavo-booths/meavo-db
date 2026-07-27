@@ -364,6 +364,12 @@ enum RequestStatus {
   CANCELLED
 }
 
+enum LeaveType {
+  PAID
+  SICK
+  UNPAID
+}
+
 model PublicHoliday {
   id          String   @id @default(cuid())
   countryCode String
@@ -396,6 +402,7 @@ model VacationRequest {
   startDate    DateTime
   endDate      DateTime
   days         Float
+  leaveType    LeaveType     @default(PAID)
   note         String?
   status       RequestStatus @default(PENDING)
   reviewedById String?
@@ -410,6 +417,7 @@ model VacationRequest {
   @@index([userId])
   @@index([status])
   @@index([startDate, endDate])
+  @@index([leaveType])
 }
 
 // ---- Assembly (owner: assembly) ----
