@@ -442,6 +442,12 @@ enum QuestionType {
   YES_NO
 }
 
+enum QuestionnairePhotoStep {
+  REQUIRED
+  OPTIONAL
+  HIDDEN
+}
+
 enum AssemblySource {
   SHEET_IMPORTED
   APP_CREATED
@@ -535,6 +541,11 @@ model Assembly {
 
 model Questionnaire {
   id          String   @id @default(cuid())
+  /// Staff-facing label, e.g. "Assembly" or "Short visit".
+  name        String   @default("")
+  /// Assembly event types this questionnaire is served for.
+  eventTypes  AssemblyEventType[]
+  photoStep   QuestionnairePhotoStep @default(REQUIRED)
   isPublished Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
