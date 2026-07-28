@@ -783,6 +783,7 @@ enum DealStage {
 enum PaymentTerms {
   UPFRONT_100
   SPLIT_50_50
+  SPLIT_30_70
   NET_30
   NET_7
   NET_60
