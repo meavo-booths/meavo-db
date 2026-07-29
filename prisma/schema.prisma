@@ -829,6 +829,8 @@ enum ProductFinish {
   WHITE_STOCK
   BLACK_STOCK
   LDF_COLOUR
+  /// Finish not decided yet — quotes only; a TBC line blocks conversion to a won deal.
+  TBC
 }
 
 enum LineItemDiscountType {
