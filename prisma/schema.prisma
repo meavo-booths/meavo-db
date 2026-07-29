@@ -822,6 +822,8 @@ enum LostReason {
   PRICE_TOO_HIGH
   NO_REPLY
   OTHER
+  /// Auto-set when a sibling quote variation is won; not offered in the manual lost-reason picker.
+  SUPERSEDED_BY_VARIATION
 }
 
 enum ProductFinish {
@@ -993,6 +995,11 @@ model Deal {
   /// quote is won. Same key as Assembly.dealId and GatewaySheetRecord.rowKey.
   dealId String? @unique
 
+  /// Quote variation family (owner: sales). Null = this row is the canonical
+  /// quote (MQ-00123). Variations point at the canonical and use letter
+  /// suffixes (MQ-00123a). Conversion metrics count distinct families.
+  canonicalQuoteId String?
+
   /// Client directory link. The client fields below stay as a snapshot taken
   /// at quote time, so editing a client never rewrites past quotes.
   clientId String?
@@ -1085,19 +1092,22 @@ model Deal {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client      Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  contacts    DealContact[]
-  lineItems   QuoteLineItem[]
-  boothUnits  BoothUnit[]
-  assemblies  Assembly[]
-  auditLogs   DealAuditLog[]
-  attachments DealAttachment[]
+  client           Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  canonicalQuote   Deal?            @relation("QuoteVariations", fields: [canonicalQuoteId], references: [id], onDelete: Restrict)
+  quoteVariations  Deal[]           @relation("QuoteVariations")
+  contacts         DealContact[]
+  lineItems        QuoteLineItem[]
+  boothUnits       BoothUnit[]
+  assemblies       Assembly[]
+  auditLogs        DealAuditLog[]
+  attachments      DealAttachment[]
 
   @@index([stage])
   @@index([dealDate])
   @@index([clientName])
   @@index([clientId])
   @@index([readyToAssemble])
+  @@index([canonicalQuoteId])
 }
 
 /// Field-level change history for Deal rows (sales app). Written automatically
