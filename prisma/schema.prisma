@@ -877,6 +877,8 @@ enum AddOnProductFamily {
 model Product {
   id          String      @id @default(cuid())
   name        String
+  /// Customer-facing label on quotes/PDFs (Sales-owned; never overwritten by Xero sync).
+  publicName  String      @default("")
   version     String      @default("")
   kind        ProductKind @default(BOOTH)
   boothFamily BoothProductFamily?
@@ -894,7 +896,7 @@ model Product {
 
   // Xero item link (owner: sales) — set by the Xero items import. Commercial
   // fields (name, description, listPrice, isActive) are overwritten on sync
-  // for linked products; kind, images and restrictions stay Sales-owned.
+  // for linked products; kind, images, restrictions, taxCode, and publicName stay Sales-owned.
   xeroItemId   String?   @unique
   xeroItemCode String?
   xeroSyncedAt DateTime?
