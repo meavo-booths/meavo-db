@@ -1077,6 +1077,10 @@ model Deal {
   /// User opted out of creating a Xero invoice at win time (manual DealID path).
   skipXeroOnWin Boolean @default(false)
 
+  /// Optional override of the market/US-state branding theme for this deal's invoices.
+  xeroBrandingThemeId   String?
+  xeroBrandingThemeName String?
+
   /// Set when payment status was first synced from Xero; locks manual payment edits.
   xeroPaymentSyncedAt DateTime?
 
