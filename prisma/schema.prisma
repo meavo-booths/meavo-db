@@ -2550,6 +2550,11 @@ model RpRequest {
   dueDate                 DateTime?                 @map("due_date")
   itemsJson               Json?                     @map("items_json")
   stockReplacementSummary RpStockReplacementSummary @default(none) @map("stock_replacement_summary")
+  /**
+   * Shared id for RPs created from one logger submit (parts bundle + per-panel
+   * RPs). Used to sync common shipping fields and offer group cancel.
+   */
+  linkedGroupId           String?                   @map("linked_group_id")
   createdAt               DateTime                  @default(now()) @map("created_at")
   updatedAt               DateTime                  @updatedAt @map("updated_at")
   syncedAt                DateTime?                 @map("synced_at")
@@ -2562,6 +2567,7 @@ model RpRequest {
   @@index([reviewGroup])
   @@index([urgency])
   @@index([orderSentAt])
+  @@index([linkedGroupId])
   @@map("rp_requests")
 }
 
