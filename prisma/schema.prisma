@@ -2600,7 +2600,7 @@ model RpLineItem {
   @@map("rp_line_items")
 }
 
-/// Maps RP spare-part 4-digit codes to MRP materials for stock deduction.
+/// Maps RP spare-part catalogue codes (R###) to MRP materials for stock deduction.
 model RpPartMrpMap {
   id            String   @id @default(cuid())
   partRpCode    String   @unique @map("part_rp_code")
@@ -2638,7 +2638,8 @@ model RpPanelMrpMap {
 /// Neon-owned spare parts catalogue (replaces Google Sheet at runtime).
 model RpSparePart {
   id               String   @id @default(cuid())
-  code             String   @unique
+  rpCode           String   @unique @map("rp_code")
+  materialCode     String?  @map("material_code")
   description      String
   category         String
   subcategory      String?
@@ -2653,6 +2654,7 @@ model RpSparePart {
 
   @@index([category])
   @@index([isActive])
+  @@index([materialCode])
   @@map("rp_spare_parts")
 }
 
