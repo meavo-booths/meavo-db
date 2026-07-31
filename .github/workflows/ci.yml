@@ -27,6 +27,10 @@ jobs:
       - run: npm ci
 
       - name: Validate Prisma schema
+        # Prisma resolves env("DATABASE_URL") while parsing the schema, so the
+        # variable must exist even though validation never opens a connection.
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
         run: npx prisma validate
 
       # `npm run diff` is deliberately not run here: it connects to the live
