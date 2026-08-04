@@ -87,6 +87,8 @@ model User {
 
   featureRequestsAuthored FeatureRequest[]     @relation("FeatureRequestAuthor")
   featureRequestVotes     FeatureRequestVote[]
+
+  factoryPanelScrapReports FactoryPanelScrapReport[] @relation("FactoryPanelScrapReporter")
 }
 
 model Account {
@@ -2088,6 +2090,7 @@ model FactoryBoothModel {
   productionBatches FactoryProductionBatch[]
   planningBatches   FactoryPlanningBatch[]
   planningBooths    FactoryPlanningBooth[]
+  panelScrapReports FactoryPanelScrapReport[]
 }
 
 /// Elements (parts).
@@ -2104,6 +2107,7 @@ model FactoryElement {
   workSessions     FactoryWorkSession[]
   quotas           FactoryQuota[]
   taskOverrides    FactoryScheduleTaskOverride[]
+  panelScrapReports FactoryPanelScrapReport[]
 }
 
 /// BOM: which station produces which element per booth model, incl. the
@@ -2140,6 +2144,7 @@ model FactoryColor {
   workItems        FactoryStationWorkItem[]
   productionEvents FactoryProductionEvent[]
   workSessions     FactoryWorkSession[]
+  panelScrapReports FactoryPanelScrapReport[]
 }
 
 /// Booth options (Privacy Foil, etc.)
@@ -2172,6 +2177,7 @@ model FactoryProductionBatch {
   workSessions     FactoryWorkSession[]
   quotas           FactoryQuota[]
   taskOverrides    FactoryScheduleTaskOverride[]
+  panelScrapReports FactoryPanelScrapReport[]
 
   @@index([status])
 }
@@ -3186,4 +3192,58 @@ model FeatureRequestVote {
 
   @@unique([requestId, userId])
   @@index([userId])
+}
+
+/// Process station where a panel was scrapped (not kiosk FactoryStation codes).
+enum FactoryScrapProcessStation {
+  package
+  center
+  edge
+  sand
+  oil
+  glass
+  assembly
+}
+
+/// Mobile panel-scrap report (Бракуване на панели). Separate from kiosk qtyScrap events.
+model FactoryPanelScrapReport {
+  id               String                     @id @default(cuid())
+  batchId          String
+  boothModelId     String
+  colorId          String
+  elementId        String
+  processStation   FactoryScrapProcessStation
+  qty              Int                        @default(1)
+  notes            String?
+  protocolNumber   Int?                       @unique
+  pdfStorageKey    String?
+  recordedByUserId String
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  batch          FactoryProductionBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  boothModel     FactoryBoothModel        @relation(fields: [boothModelId], references: [id])
+  color          FactoryColor             @relation(fields: [colorId], references: [id])
+  element        FactoryElement           @relation(fields: [elementId], references: [id])
+  recordedByUser User                     @relation("FactoryPanelScrapReporter", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  photos         FactoryPanelScrapPhoto[]
+
+  @@index([batchId, createdAt(sort: Desc)])
+  @@index([recordedByUserId, createdAt(sort: Desc)])
+  @@index([processStation])
+}
+
+model FactoryPanelScrapPhoto {
+  id         String   @id @default(cuid())
+  reportId   String
+  storageKey String
+  fileName   String?
+  mimeType   String
+  sizeBytes  Int
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  report FactoryPanelScrapReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
 }
