@@ -787,6 +787,7 @@ enum PaymentTerms {
   NET_30
   NET_7
   NET_60
+  NET_14
 }
 
 enum DealClientType {
