@@ -1093,6 +1093,11 @@ model Deal {
   zampSyncedAt      DateTime?
   zampSyncError     String?
 
+  /// Soft delete (owner: sales). Non-null hides the row from every sales list
+  /// and report unless the Deleted filter is selected.
+  deletedAt       DateTime?
+  deletedByUserId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1112,6 +1117,7 @@ model Deal {
   @@index([clientId])
   @@index([readyToAssemble])
   @@index([canonicalQuoteId])
+  @@index([deletedAt])
 }
 
 /// Field-level change history for Deal rows (sales app). Written automatically
