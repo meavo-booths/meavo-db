@@ -2944,6 +2944,25 @@ model ClockWorkSettings {
   @@map("clock_work_settings")
 }
 
+/// Kiosk heartbeat / health (upserted by POST /api/device/heartbeat).
+model ClockDevice {
+  id             String   @id @default(cuid())
+  stationId      String   @unique @map("station_id")
+  lastSeenAt     DateTime @map("last_seen_at")
+  firmwareVersion String? @map("firmware_version")
+  uptimeSec      Int?     @map("uptime_sec")
+  wifiRssi       Int?     @map("wifi_rssi")
+  queueUnsynced  Int?     @map("queue_unsynced")
+  rfidOk         Boolean  @default(true) @map("rfid_ok")
+  lastEvent      String?  @map("last_event")
+  lastError      String?  @map("last_error")
+  bootCount      Int?     @map("boot_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("clock_devices")
+}
+
 // ---- Task management (owner: tasks) ----
 
 enum TaskWorkspaceType {
