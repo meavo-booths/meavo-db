@@ -56,7 +56,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Assembly | assembly | Assembly, AssemblyPartner, Questionnaire*, Question*, Submission*, Resource*, SheetImportState |
 | Sales | sales | Product, Client*, Deal*, QuoteLineItem, BoothUnit |
 | Notifications | gateway | NotificationOutbox, NotificationDelivery, NotificationEventSetting |
-| Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine |
+| Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpMaterialCategory, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine |
 | Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryProduction*, FactoryStationWorkItem, FactoryWorkSession, FactoryQuota, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite |
 | Spare parts / panels (RP) | rp | RpRequest, RpLineItem, RpInternalProductionRow, RpPhoto, RpSheetSyncOutbox, RpSheetRowMap, RpAddressBookEntry, RpPanelCatalogOption, RpExportTrackingRow, RpNumSequence, RpIpNumSequence, RpAutomationState, RpLifecycleEvent, RpPartMrpMap, RpPanelMrpMap, RpSparePart, RpPanelOption |
 | Task management | tasks | TaskWorkspace, TaskWorkspaceMember, TaskBoardColumn, Task, TaskAssignee, TaskExternalLink |
