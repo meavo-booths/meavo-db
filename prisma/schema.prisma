@@ -2963,6 +2963,16 @@ model ClockDevice {
   @@map("clock_devices")
 }
 
+/// Calendar days ignored by hours / reports (test data, etc.). Events are kept.
+model ClockExcludedDay {
+  id        String   @id @default(cuid())
+  date      String   @unique // YYYY-MM-DD site-local
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("clock_excluded_days")
+}
+
 // ---- Task management (owner: tasks) ----
 
 enum TaskWorkspaceType {
