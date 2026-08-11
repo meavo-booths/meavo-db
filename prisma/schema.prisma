@@ -1778,6 +1778,27 @@ model MrpBoothElement {
 }
 
 /// Raw materials tracked for stock (Zeron item code optional until API sync).
+/// Two-level material taxonomy: parentId null = main stage, set = subcategory.
+model MrpMaterialCategory {
+  id         String   @id @default(cuid())
+  /// Stable machine key for CSV (e.g. osnovni, osnovni-darven).
+  code       String   @unique
+  name       String
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  parentId String?
+  parent   MrpMaterialCategory?  @relation("MrpMaterialCategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children MrpMaterialCategory[] @relation("MrpMaterialCategoryTree")
+
+  materials MrpMaterial[]
+
+  @@index([parentId])
+  @@index([isActive, sortOrder])
+}
+
 model MrpMaterial {
   id              String   @id @default(cuid())
   /// Zeron / internal SKU — unique when set.
@@ -1787,10 +1808,13 @@ model MrpMaterial {
   unitPriceEur    Decimal? @db.Decimal(18, 4)
   /// Denormalized default-warehouse on-hand; see MrpStockBalance per site.
   currentQuantity Decimal  @default(0) @db.Decimal(18, 4)
+  /// Most specific category (subcategory when the main has children). Nullable for legacy rows until assigned.
+  categoryId      String?
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  category             MrpMaterialCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   bomLines             MrpElementBomLine[]
   exceptionChanges     MrpRecipeExceptionLineChange[]
   stockMovements       MrpStockMovement[]
@@ -1802,6 +1826,8 @@ model MrpMaterial {
   @@index([name])
   @@index([isActive])
   @@index([isActive, name])
+  @@index([categoryId])
+  @@index([isActive, categoryId])
 }
 
 /// Material code referenced in ElementBOM but not yet in materials master.
