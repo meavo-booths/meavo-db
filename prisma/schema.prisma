@@ -2919,19 +2919,21 @@ model ClockUnassignedTap {
 }
 
 model ClockEvent {
-  id             String         @id @default(cuid())
-  uid            String
-  workerId       String         @map("worker_id")
-  stationId      String         @map("station_id")
-  eventType      ClockEventType @map("event_type")
-  tappedAt       String         @map("tapped_at")
-  idempotencyKey String         @unique @map("idempotency_key")
-  createdAt      DateTime       @default(now()) @map("created_at")
+  id                String         @id @default(cuid())
+  uid               String
+  workerId          String         @map("worker_id")
+  stationId         String         @map("station_id")
+  eventType         ClockEventType @map("event_type")
+  tappedAt          String         @map("tapped_at")
+  idempotencyKey    String         @unique @map("idempotency_key")
+  excludedFromStats Boolean        @default(false) @map("excluded_from_stats")
+  createdAt         DateTime       @default(now()) @map("created_at")
 
   worker ClockWorker @relation(fields: [workerId], references: [id])
 
   @@index([tappedAt])
   @@index([workerId])
+  @@index([excludedFromStats])
   @@map("clock_events")
 }
 
