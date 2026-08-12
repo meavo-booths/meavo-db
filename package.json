@@ -1,10 +1,6 @@
 {
   "name": "@meavo/db",
-<<<<<<< HEAD
-  "version": "0.52.0",
-=======
-  "version": "0.51.0",
->>>>>>> 0278bd5 (Add MrpMaterialCategory for MRP material taxonomy (#13))
+  "version": "0.53.0",
   "private": true,
   "description": "Canonical Prisma schema for the shared MEAVO Postgres database. The only repo allowed to alter the database.",
   "repository": {
