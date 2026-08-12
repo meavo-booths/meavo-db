@@ -1057,6 +1057,13 @@ model Deal {
   /// Free-text detail when lostReason = OTHER.
   lostReasonNote String      @default("")
 
+  /// HubSpot closed_lost_reason option value — source of truth for new losses.
+  /// lostReason above is still written, for legacy readers and reporting history.
+  lostReasonCode  String?
+  /// HubSpot option label as it read when the quote was lost, so renaming the
+  /// option in HubSpot never rewrites past rows.
+  lostReasonLabel String?
+
   // Ops File write-back bookkeeping
   sheetRows      Json?
   sheetSyncedAt  DateTime?
@@ -1094,6 +1101,20 @@ model Deal {
   zampSyncedAt      DateTime?
   zampSyncError     String?
 
+  // HubSpot CRM link (owner: sales) — set when a rep links the quote to a
+  // HubSpot deal. Not unique: quote variations can share one HubSpot deal.
+  hubspotDealId         String?
+  /// Deal name cached from HubSpot so the quote page renders without an API call.
+  hubspotDealName       String?
+  /// Last quote PDF pushed to HubSpot: the uploaded file and the note carrying it.
+  hubspotFileId         String?
+  hubspotNoteId         String?
+  hubspotSyncedAt       DateTime?
+  /// Last failure from either HubSpot push (PDF or amount); drives the retry button.
+  hubspotSyncError      String?
+  /// Set when the HubSpot deal Amount last matched this quote's net total.
+  hubspotAmountSyncedAt DateTime?
+
   /// Soft delete (owner: sales). Non-null hides the row from every sales list
   /// and report unless the Deleted filter is selected.
   deletedAt       DateTime?
@@ -1119,6 +1140,7 @@ model Deal {
   @@index([readyToAssemble])
   @@index([canonicalQuoteId])
   @@index([deletedAt])
+  @@index([hubspotDealId])
 }
 
 /// Field-level change history for Deal rows (sales app). Written automatically
@@ -1318,6 +1340,27 @@ model XeroIntegrationSettings {
   defaultUsTaxAccountName    String?
   lastXeroItemsSyncAt      DateTime?
   updatedAt                DateTime  @updatedAt
+}
+
+// ---- HubSpot integration (owner: sales) ----
+
+/// Mirror of the HubSpot deal property `closed_lost_reason` options, refreshed
+/// by the sales app's HubSpot cron. HubSpot owns this list; the sales app reads
+/// it to populate the mark-lost picker, so the picker keeps working when the
+/// HubSpot API is unreachable. Options removed in HubSpot are archived rather
+/// than deleted, because past Deal rows still reference their value.
+model HubSpotLostReason {
+  id           String   @id @default(cuid())
+  /// HubSpot option internal value, stored on Deal.lostReasonCode.
+  value        String   @unique
+  label        String
+  displayOrder Int      @default(0)
+  archived     Boolean  @default(false)
+  syncedAt     DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([archived, displayOrder])
 }
 
 // ---- Notifications (owner: gateway) ----
@@ -2945,19 +2988,21 @@ model ClockUnassignedTap {
 }
 
 model ClockEvent {
-  id             String         @id @default(cuid())
-  uid            String
-  workerId       String         @map("worker_id")
-  stationId      String         @map("station_id")
-  eventType      ClockEventType @map("event_type")
-  tappedAt       String         @map("tapped_at")
-  idempotencyKey String         @unique @map("idempotency_key")
-  createdAt      DateTime       @default(now()) @map("created_at")
+  id                String         @id @default(cuid())
+  uid               String
+  workerId          String         @map("worker_id")
+  stationId         String         @map("station_id")
+  eventType         ClockEventType @map("event_type")
+  tappedAt          String         @map("tapped_at")
+  idempotencyKey    String         @unique @map("idempotency_key")
+  excludedFromStats Boolean        @default(false) @map("excluded_from_stats")
+  createdAt         DateTime       @default(now()) @map("created_at")
 
   worker ClockWorker @relation(fields: [workerId], references: [id])
 
   @@index([tappedAt])
   @@index([workerId])
+  @@index([excludedFromStats])
   @@map("clock_events")
 }
 
@@ -2968,6 +3013,35 @@ model ClockWorkSettings {
   timezone   String @default("Europe/Sofia")
 
   @@map("clock_work_settings")
+}
+
+/// Kiosk heartbeat / health (upserted by POST /api/device/heartbeat).
+model ClockDevice {
+  id             String   @id @default(cuid())
+  stationId      String   @unique @map("station_id")
+  lastSeenAt     DateTime @map("last_seen_at")
+  firmwareVersion String? @map("firmware_version")
+  uptimeSec      Int?     @map("uptime_sec")
+  wifiRssi       Int?     @map("wifi_rssi")
+  queueUnsynced  Int?     @map("queue_unsynced")
+  rfidOk         Boolean  @default(true) @map("rfid_ok")
+  lastEvent      String?  @map("last_event")
+  lastError      String?  @map("last_error")
+  bootCount      Int?     @map("boot_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("clock_devices")
+}
+
+/// Calendar days ignored by hours / reports (test data, etc.). Events are kept.
+model ClockExcludedDay {
+  id        String   @id @default(cuid())
+  date      String   @unique // YYYY-MM-DD site-local
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("clock_excluded_days")
 }
 
 // ---- Task management (owner: tasks) ----
