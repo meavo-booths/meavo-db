@@ -14,7 +14,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `DocumentTemplate*`, `GeneratedDocument`, `LibraryAsset`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner`, `Questionnaire*`, `QuestionnaireSubmission`, `Resource*`, `SheetImportState` |
-| Sales | sales | `Product`, `Client`, `Deal`, `QuoteLineItem`, `BoothUnit` |
+| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `Deal`, `QuoteLineItem`, `BoothUnit` |
 | Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroIntegrationSettings` |
 | Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting` |
 | Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpElementBomLine`, ... |

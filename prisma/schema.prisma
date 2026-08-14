@@ -877,6 +877,13 @@ enum AddOnProductFamily {
   MOVING_SERVICE
 }
 
+/// Category for ProductFamilyInfo rows (phone booths, add-ons, or services).
+enum ProductFamilyCategory {
+  PHONE_BOOTH
+  ADD_ON
+  SERVICE
+}
+
 model Product {
   id          String      @id @default(cuid())
   name        String
@@ -939,6 +946,26 @@ model ProductAddOnFamilyRestriction {
 
   @@id([addOnId, boothFamily])
   @@index([boothFamily])
+}
+
+/// Per-family metadata for quotes/PDFs (image, dimensions, category).
+/// One row per BoothProductFamily / AddOnProductFamily enum value; seeded lazily by sales.
+model ProductFamilyInfo {
+  id          String                @id @default(cuid())
+  kind        ProductKind
+  boothFamily BoothProductFamily?   @unique
+  addOnFamily AddOnProductFamily?   @unique
+  displayName String
+  category    ProductFamilyCategory
+  imageUrl    String?
+  widthCm     Decimal?              @db.Decimal(6, 1)
+  depthCm     Decimal?              @db.Decimal(6, 1)
+  heightCm    Decimal?              @db.Decimal(6, 1)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([kind])
+  @@index([category])
 }
 
 model Client {
