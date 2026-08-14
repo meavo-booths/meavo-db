@@ -2121,6 +2121,11 @@ enum FactoryPlanningBoothStatus {
   ready
 }
 
+enum FactoryPlanningMonthReadiness {
+  draft
+  final
+}
+
 /// Station grouping (roles table in the old Factory Supabase schema).
 model FactoryStationRole {
   id        String   @id @default(cuid())
@@ -2457,6 +2462,7 @@ model FactorySite {
 
   planningBatches FactoryPlanningBatch[]
   importRuns      FactoryPlanningImportRun[]
+  planningMonths  FactoryPlanningMonth[]
 }
 
 model FactoryBoothVersionCode {
@@ -2556,6 +2562,24 @@ model FactoryPlanningImportRun {
   finishedAt      DateTime?
 
   site FactorySite @relation(fields: [siteId], references: [id])
+}
+
+/// One production month per factory site (final or draft «Not Ready» from Sheets).
+model FactoryPlanningMonth {
+  id         String                        @id @default(cuid())
+  siteId     String
+  year       Int
+  month      Int
+  readiness  FactoryPlanningMonthReadiness @default(final)
+  sheetTab   String?
+  importedAt DateTime?
+  createdAt  DateTime                      @default(now())
+  updatedAt  DateTime                      @updatedAt
+
+  site FactorySite @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, year, month])
+  @@index([year, month])
 }
 
 // ---- RP spare parts / panels (owner: rp) ----
@@ -3032,6 +3056,22 @@ model ClockDevice {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("clock_devices")
+}
+
+/// Append-only health transitions from kiosk heartbeats (not every 5‑min ping).
+model ClockDeviceEvent {
+  id              String   @id @default(cuid())
+  stationId       String   @map("station_id")
+  at              DateTime @default(now())
+  rfidOk          Boolean  @map("rfid_ok")
+  lastEvent       String?  @map("last_event")
+  lastError       String?  @map("last_error")
+  uptimeSec       Int?     @map("uptime_sec")
+  wifiRssi        Int?     @map("wifi_rssi")
+  firmwareVersion String?  @map("firmware_version")
+
+  @@index([stationId, at])
+  @@map("clock_device_events")
 }
 
 /// Calendar days ignored by hours / reports (test data, etc.). Events are kept.
