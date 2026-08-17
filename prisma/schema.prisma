@@ -798,6 +798,13 @@ enum DealClientType {
   INTERNAL_EVENTS
 }
 
+/// Retail vs Trade pricing on a deal. Trade deals pull Product.tradePrice /
+/// tradeName (falling back to the retail fields when unset).
+enum DealType {
+  RETAIL
+  TRADE
+}
+
 enum PaymentStatus {
   UNPAID
   PARTIALLY_PAID
@@ -889,6 +896,8 @@ model Product {
   name        String
   /// Customer-facing label on quotes/PDFs (Sales-owned; never overwritten by Xero sync).
   publicName  String      @default("")
+  /// Customer-facing label on TRADE deals; empty = fall back to publicName (Sales-owned).
+  tradeName   String      @default("")
   version     String      @default("")
   kind        ProductKind @default(BOOTH)
   boothFamily BoothProductFamily?
@@ -896,6 +905,8 @@ model Product {
   description String      @default("")
   imageUrl    String?
   listPrice   Decimal     @default(0) @db.Decimal(12, 2)
+  /// Catalog price for TRADE deals; null = fall back to listPrice (Sales-owned).
+  tradePrice  Decimal?    @db.Decimal(12, 2)
   /// Catalog list price currency (EUR, GBP, CZK, or USD).
   currency    String      @default("EUR")
   isActive    Boolean     @default(true)
@@ -917,7 +928,7 @@ model Product {
   /// For ADDON products: booth families this add-on is limited to. No rows = any family.
   familyRestrictions ProductAddOnFamilyRestriction[]
 
-  /// Markets and client types this product is sold for. No rows = all combinations.
+  /// Markets this product is sold in. No rows = all markets.
   availability ProductAvailability[]
 
   @@index([isActive])
@@ -930,12 +941,13 @@ model Product {
 model ProductAvailability {
   productId  String
   market     String
-  clientType DealClientType
+  /// Legacy column from the old market × client-type matrix; availability is market-only now.
+  clientType DealClientType?
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@id([productId, market, clientType])
-  @@index([market, clientType])
+  @@id([productId, market])
+  @@index([market])
 }
 
 model ProductAddOnFamilyRestriction {
@@ -977,6 +989,8 @@ model Client {
   market            String         @default("")
   website           String         @default("")
   isVip             Boolean        @default(false)
+  /// Showroom partner label — orthogonal to clientType (like isVip).
+  isShowroom        Boolean        @default(false)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -1052,6 +1066,8 @@ model Deal {
   /// End customer when the billed client is an agency or intermediary.
   actualClient      String         @default("")
   clientType        DealClientType @default(DIRECT)
+  /// Retail vs Trade pricing for this deal — drives which product price/name is quoted.
+  dealType          DealType       @default(RETAIL)
   paymentTerms      PaymentTerms   @default(UPFRONT_100)
   paymentStatus     PaymentStatus  @default(UNPAID)
   paymentPoDate     DateTime?      @db.Date
