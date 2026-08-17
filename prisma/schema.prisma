@@ -1777,6 +1777,7 @@ model MrpBoothModel {
   elements             MrpBoothElement[]
   manufacturingBatches MrpManufacturingBatch[]
   exceptionScopes      MrpRecipeExceptionScope[]
+  electricAssemblies   MrpElectricAssembly[]
 }
 
 /// Checklist column on batch Опаковане tab (Таван, Под, …) per model.
@@ -1849,6 +1850,7 @@ model MrpMaterial {
   productionBatchLines MrpProductionBatchLine[]
   inventoryCounts      MrpInventoryCount[]
   rpPartMaps           RpPartMrpMap[]
+  electricModuleLines  MrpElectricModuleLine[]
 
   @@index([name])
   @@index([isActive])
@@ -1880,6 +1882,74 @@ model MrpElementBomLine {
   material     MrpMaterial     @relation(fields: [materialId], references: [id], onDelete: Restrict)
 
   @@unique([boothElementId, colour, market, materialId])
+}
+
+/// Reusable electric sub-recipe (loom / kit). Not a packing-panel element.
+model MrpElectricModule {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  /// Manufacturing / drawing number for the module as a whole.
+  partCode  String   @unique
+  name      String
+  notes     String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines         MrpElectricModuleLine[]
+  assemblyLines MrpElectricAssemblyLine[]
+}
+
+/// Materials that make up one electric module.
+model MrpElectricModuleLine {
+  id         String   @id @default(cuid())
+  moduleId   String
+  materialId String
+  /// null = all markets; default = non-US; US = US only.
+  market     String?
+  quantity   Decimal  @db.Decimal(18, 4)
+  createdAt  DateTime @default(now())
+
+  module   MrpElectricModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  material MrpMaterial       @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([moduleId, market, materialId])
+  @@index([materialId])
+}
+
+/// Booth-level electric recipe composed only of modules (no loose materials).
+model MrpElectricAssembly {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  boothModelId String
+  /// Optional station: ceiling | table | ports | full
+  kind         String?
+  notes        String?
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  boothModel MrpBoothModel             @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
+  lines      MrpElectricAssemblyLine[]
+
+  @@index([boothModelId])
+}
+
+model MrpElectricAssemblyLine {
+  id         String   @id @default(cuid())
+  assemblyId String
+  moduleId   String
+  quantity   Decimal  @db.Decimal(18, 4)
+  createdAt  DateTime @default(now())
+
+  assembly MrpElectricAssembly @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  module   MrpElectricModule   @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+
+  @@unique([assemblyId, moduleId])
+  @@index([moduleId])
 }
 
 /// Row from master sheet Статус на партиди (synced from Google Sheets).
