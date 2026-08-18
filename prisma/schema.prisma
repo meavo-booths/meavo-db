@@ -882,6 +882,7 @@ enum AddOnProductFamily {
   WARRANTY
   ASSEMBLY
   MOVING_SERVICE
+  DELIVERY
 }
 
 /// Category for ProductFamilyInfo rows (phone booths, add-ons, or services).
