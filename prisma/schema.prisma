@@ -799,7 +799,7 @@ enum DealClientType {
 }
 
 /// Retail vs Trade pricing on a deal. Trade deals pull Product.tradePrice /
-/// tradeName (falling back to the retail fields when unset).
+/// tradeName / tradeDescription (falling back to the retail fields when unset).
 enum DealType {
   RETAIL
   TRADE
@@ -904,6 +904,8 @@ model Product {
   boothFamily BoothProductFamily?
   addOnFamily AddOnProductFamily?
   description String      @default("")
+  /// Customer-facing description on TRADE deals; empty = fall back to description (Sales-owned).
+  tradeDescription String @default("")
   imageUrl    String?
   listPrice   Decimal     @default(0) @db.Decimal(12, 2)
   /// Catalog price for TRADE deals; null = fall back to listPrice (Sales-owned).
