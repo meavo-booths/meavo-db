@@ -82,8 +82,9 @@ model User {
   appAnnouncements        AppAnnouncement[]            @relation("AppAnnouncementAuthor")
   usefulLinksCreated      UsefulLink[]                 @relation("UsefulLinkAuthor")
   libraryVideosCreated    LibraryVideo[]               @relation("LibraryVideoAuthor")
-  signatureRequestsSent      SignatureRequest[]         @relation("SignatureRequestSender")
-  signatureRequestsAsSubject SignatureRequest[]         @relation("SignatureRequestSubject")
+  signatureRequestsSent         SignatureRequest[]         @relation("SignatureRequestSender")
+  signatureRequestsAsSubject    SignatureRequest[]         @relation("SignatureRequestSubject")
+  signatureRequestsAsCompanySigner SignatureRequest[]      @relation("SignatureRequestCompanySigner")
 
   clockWorker                ClockWorker?
 
@@ -335,26 +336,30 @@ model GeneratedDocument {
 }
 
 model SignatureRequest {
-  id                  String                 @id @default(cuid())
-  generatedDocumentId String                 @unique
-  subjectUserId       String
-  provider            String                 @default("signwell")
-  externalId          String
-  status              SignatureRequestStatus @default(SENT)
-  signerEmail         String
-  sentById            String
-  signedDocumentKey   String?
-  employeeDocumentId  String?                @unique
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
+  id                    String                 @id @default(cuid())
+  generatedDocumentId   String                 @unique
+  subjectUserId         String
+  provider              String                 @default("signwell")
+  externalId            String
+  status                SignatureRequestStatus @default(SENT)
+  signerEmail           String
+  companySignerUserId   String?
+  companySignerEmail    String?
+  sentById              String
+  signedDocumentKey     String?
+  employeeDocumentId    String?                @unique
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
   subjectUser       User              @relation("SignatureRequestSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
+  companySigner     User?             @relation("SignatureRequestCompanySigner", fields: [companySignerUserId], references: [id], onDelete: SetNull)
   sentBy            User              @relation("SignatureRequestSender", fields: [sentById], references: [id], onDelete: Restrict)
   employeeDocument  EmployeeDocument? @relation(fields: [employeeDocumentId], references: [id], onDelete: SetNull)
 
   @@index([externalId])
   @@index([subjectUserId])
+  @@index([companySignerUserId])
   @@index([status])
 }
 
