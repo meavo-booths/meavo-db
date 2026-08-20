@@ -82,6 +82,8 @@ model User {
   appAnnouncements        AppAnnouncement[]            @relation("AppAnnouncementAuthor")
   usefulLinksCreated      UsefulLink[]                 @relation("UsefulLinkAuthor")
   libraryVideosCreated    LibraryVideo[]               @relation("LibraryVideoAuthor")
+  signatureRequestsSent      SignatureRequest[]         @relation("SignatureRequestSender")
+  signatureRequestsAsSubject SignatureRequest[]         @relation("SignatureRequestSubject")
 
   clockWorker                ClockWorker?
 
@@ -198,6 +200,13 @@ enum ContractType {
   FREELANCE
 }
 
+enum SignatureRequestStatus {
+  SENT
+  COMPLETED
+  DECLINED
+  CANCELED
+}
+
 model Employee {
   id                     String       @id @default(cuid())
   userId                 String       @unique
@@ -267,7 +276,8 @@ model EmployeeDocument {
   uploadedBy String
   createdAt  DateTime @default(now())
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee         Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  signatureRequest SignatureRequest?
 
   @@index([employeeId])
 }
@@ -315,12 +325,37 @@ model GeneratedDocument {
   storageKey        String
   createdAt         DateTime @default(now())
 
-  templateVersion DocumentTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
-  generatedBy     User                    @relation("GeneratedDocumentCreator", fields: [generatedById], references: [id], onDelete: Restrict)
-  subjectUser     User?                   @relation("GeneratedDocumentSubject", fields: [subjectUserId], references: [id], onDelete: SetNull)
+  templateVersion  DocumentTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  generatedBy      User                    @relation("GeneratedDocumentCreator", fields: [generatedById], references: [id], onDelete: Restrict)
+  subjectUser      User?                   @relation("GeneratedDocumentSubject", fields: [subjectUserId], references: [id], onDelete: SetNull)
+  signatureRequest SignatureRequest?
 
   @@index([templateVersionId])
   @@index([subjectUserId])
+}
+
+model SignatureRequest {
+  id                  String                 @id @default(cuid())
+  generatedDocumentId String                 @unique
+  subjectUserId       String
+  provider            String                 @default("signwell")
+  externalId          String
+  status              SignatureRequestStatus @default(SENT)
+  signerEmail         String
+  sentById            String
+  signedDocumentKey   String?
+  employeeDocumentId  String?                @unique
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
+  subjectUser       User              @relation("SignatureRequestSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
+  sentBy            User              @relation("SignatureRequestSender", fields: [sentById], references: [id], onDelete: Restrict)
+  employeeDocument  EmployeeDocument? @relation(fields: [employeeDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([externalId])
+  @@index([subjectUserId])
+  @@index([status])
 }
 
 model LibraryAsset {
