@@ -283,13 +283,16 @@ model EmployeeDocument {
 }
 
 model DocumentTemplate {
-  id          String   @id @default(cuid())
-  name        String
-  description String   @default("")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdById String
+  id             String   @id @default(cuid())
+  name           String
+  description    String   @default("")
+  isActive       Boolean  @default(true)
+  logoStorageKey String?
+  logoFileName   String?
+  footerText     String   @default("") @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdById    String
 
   createdBy User                      @relation("DocumentTemplateCreator", fields: [createdById], references: [id], onDelete: Restrict)
   versions  DocumentTemplateVersion[]
