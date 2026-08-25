@@ -529,6 +529,7 @@ enum QuestionType {
   CHECKBOX
   TEXT
   YES_NO
+  YES_NO_INLINE
 }
 
 enum QuestionnairePhotoStep {
