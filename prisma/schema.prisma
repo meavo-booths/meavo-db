@@ -532,6 +532,12 @@ enum QuestionType {
   YES_NO_INLINE
 }
 
+enum QuestionnaireSectionType {
+  QUESTIONS
+  YES_NO_FORK
+  IMAGE_UPLOAD
+}
+
 enum QuestionnairePhotoStep {
   REQUIRED
   OPTIONAL
@@ -645,12 +651,14 @@ model Questionnaire {
 }
 
 model QuestionnaireSection {
-  id              String   @id @default(cuid())
+  id              String                  @id @default(cuid())
   questionnaireId String
   title           String
   sortOrder       Int
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  type            QuestionnaireSectionType @default(QUESTIONS)
+  photosRequired  Boolean                 @default(true)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
 
   questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
   questions     Question[]
