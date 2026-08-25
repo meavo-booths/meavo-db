@@ -945,6 +945,12 @@ enum AddOnProductFamily {
   ASSEMBLY
   MOVING_SERVICE
   DELIVERY
+  ETHERNET
+  PRIVACY_GLASS
+  WHEELS
+  CUSTOMISATION_FEES
+  ADDON_PROMOS
+  OTHER
 }
 
 /// Category for ProductFamilyInfo rows (phone booths, add-ons, or services).
