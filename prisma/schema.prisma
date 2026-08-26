@@ -663,6 +663,7 @@ model QuestionnaireSection {
   questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
   questions     Question[]
   translations  QuestionnaireSectionTranslation[]
+  photos        SubmissionPhoto[]
 
   @@index([questionnaireId, sortOrder])
 }
@@ -750,14 +751,17 @@ model QuestionAnswer {
 model SubmissionPhoto {
   id           String   @id @default(cuid())
   submissionId String
+  sectionId    String?
   storageKey   String
   fileName     String
   sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())
 
   submission QuestionnaireSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  section    QuestionnaireSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([submissionId])
+  @@index([submissionId, sectionId])
 }
 
 model SheetImportState {
