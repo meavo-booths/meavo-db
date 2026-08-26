@@ -581,6 +581,23 @@ model AssemblyPartner {
 
   assemblies  Assembly[]
   submissions QuestionnaireSubmission[]
+  notificationPreferences PartnerNotificationPreference[]
+}
+
+/// Per-partner mute for assembly partner email notifications. No row = follow
+/// the central NotificationEventSetting; enabled = false = muted for that partner.
+model PartnerNotificationPreference {
+  id        String   @id @default(cuid())
+  partnerId String
+  eventType String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner AssemblyPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, eventType])
+  @@index([eventType])
 }
 
 model Assembly {
