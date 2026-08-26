@@ -529,6 +529,13 @@ enum QuestionType {
   CHECKBOX
   TEXT
   YES_NO
+  YES_NO_INLINE
+}
+
+enum QuestionnaireSectionType {
+  QUESTIONS
+  YES_NO_FORK
+  IMAGE_UPLOAD
 }
 
 enum QuestionnairePhotoStep {
@@ -644,16 +651,19 @@ model Questionnaire {
 }
 
 model QuestionnaireSection {
-  id              String   @id @default(cuid())
+  id              String                  @id @default(cuid())
   questionnaireId String
   title           String
   sortOrder       Int
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  type            QuestionnaireSectionType @default(QUESTIONS)
+  photosRequired  Boolean                 @default(true)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
 
   questionnaire Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
   questions     Question[]
   translations  QuestionnaireSectionTranslation[]
+  photos        SubmissionPhoto[]
 
   @@index([questionnaireId, sortOrder])
 }
@@ -741,14 +751,17 @@ model QuestionAnswer {
 model SubmissionPhoto {
   id           String   @id @default(cuid())
   submissionId String
+  sectionId    String?
   storageKey   String
   fileName     String
   sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())
 
   submission QuestionnaireSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  section    QuestionnaireSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([submissionId])
+  @@index([submissionId, sectionId])
 }
 
 model SheetImportState {
@@ -945,6 +958,12 @@ enum AddOnProductFamily {
   ASSEMBLY
   MOVING_SERVICE
   DELIVERY
+  ETHERNET
+  PRIVACY_GLASS
+  WHEELS
+  CUSTOMISATION_FEES
+  ADDON_PROMOS
+  OTHER
 }
 
 /// Category for ProductFamilyInfo rows (phone booths, add-ons, or services).
