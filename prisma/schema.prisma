@@ -44,6 +44,7 @@ model User {
   hrAccess           Boolean    @default(false)
   holidayCountryCode String?
   slackUserId        String?
+  slackEmail         String?
   createdAt          DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
