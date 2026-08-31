@@ -2753,6 +2753,8 @@ model RpRequest {
   clarifications          String?
   notes                   String?
   client                  String?
+  /** Warehouse / partner receiving stock (shown as part of address). */
+  partner                 String?
   address                 String?
   recipient               String?
   phone                   String?
@@ -2996,14 +2998,14 @@ model RpSheetSyncOutbox {
 
 model RpAddressBookEntry {
   id        String   @id @default(cuid())
-  client    String
+  partner   String
   address   String?
   recipient String?
   phone     String?
   email     String?
   createdAt DateTime @default(now()) @map("created_at")
 
-  @@index([client])
+  @@index([partner])
   @@map("address_book_entries")
 }
 
