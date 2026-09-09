@@ -2496,6 +2496,8 @@ model FactoryBoothModel {
   code      String   @unique
   nameBg    String
   notes     String?
+  /// Planning credit weight (SO=1, C2=2, H2=2.3, …). Nullable until seeded.
+  credits   Decimal? @db.Decimal(6, 2)
   createdAt DateTime @default(now())
 
   bomRequirements   FactoryStationElementRequirement[]
@@ -2899,15 +2901,19 @@ model FactoryPlanningImportRun {
 
 /// One production month per factory site (final or draft «Not Ready» from Sheets).
 model FactoryPlanningMonth {
-  id         String                        @id @default(cuid())
-  siteId     String
-  year       Int
-  month      Int
-  readiness  FactoryPlanningMonthReadiness @default(final)
-  sheetTab   String?
-  importedAt DateTime?
-  createdAt  DateTime                      @default(now())
-  updatedAt  DateTime                      @updatedAt
+  id             String                        @id @default(cuid())
+  siteId         String
+  year           Int
+  month          Int
+  readiness      FactoryPlanningMonthReadiness @default(final)
+  sheetTab       String?
+  importedAt     DateTime?
+  /// Month tab Target cell (N1) — pace for daily panel quotas.
+  creditTarget   Decimal?                      @db.Decimal(10, 2)
+  /// Factory capacity context (AKS default 160).
+  creditCapacity Decimal?                      @db.Decimal(10, 2)
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
 
   site FactorySite @relation(fields: [siteId], references: [id])
 
