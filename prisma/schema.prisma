@@ -92,6 +92,8 @@ model User {
 
   featureRequestsAuthored FeatureRequest[]     @relation("FeatureRequestAuthor")
   featureRequestVotes     FeatureRequestVote[]
+
+  stockPartnersCreated    StockPartner[]       @relation("StockPartnerCreator")
 }
 
 model Account {
@@ -3674,4 +3676,39 @@ model FeatureRequestVote {
 
   @@unique([requestId, userId])
   @@index([userId])
+}
+
+// ---- Partner stock (owner: stock, stock.meavo.app) ----
+
+enum StockPartnerLocation {
+  UK
+  FR
+  DE
+  ES
+  US_EAST
+  US_WEST
+  OTHER_EU
+}
+
+/// Partner portal credentials + region recipe for stock.meavo.app.
+/// Inventory quantities stay in the Ops Google Sheet; Neon stores portals only.
+model StockPartner {
+  id           String               @id @default(cuid())
+  name         String
+  slug         String               @unique
+  username     String               @unique
+  passwordHash String
+  location     StockPartnerLocation
+  note         String?
+  isActive     Boolean              @default(true)
+  createdById  String
+  lastLoginAt  DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  createdBy User @relation("StockPartnerCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([isActive])
+  @@index([location])
+  @@index([createdById])
 }
