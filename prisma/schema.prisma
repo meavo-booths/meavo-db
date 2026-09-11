@@ -1406,6 +1406,42 @@ model BoothUnit {
   @@index([productId])
 }
 
+/// Brand preset for quote PDFs (logo + accent live in the sales app).
+enum QuotePdfBrand {
+  MEAVO
+  OFFICE_ACOUSTICS
+  OFB
+}
+
+/// Notes bullets + footer copy for one brand × language. Chrome (table labels)
+/// stays in the sales app; this row is what the Settings template builder edits.
+model QuotePdfTemplate {
+  id           String        @id @default(cuid())
+  brand        QuotePdfBrand
+  /// QuotePdfLang code from the sales app (en, en-US, es, it, de, fr, cs, pt).
+  lang         String
+  termsBullets Json
+  footerLines  Json
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  marketDefaults QuotePdfMarketDefault[]
+
+  @@unique([brand, lang])
+}
+
+/// One default quote-PDF template per Sales market. Reassigning a market
+/// replaces the previous default; a market must always have a default.
+model QuotePdfMarketDefault {
+  market     String           @id
+  templateId String
+  updatedAt  DateTime         @updatedAt
+
+  template QuotePdfTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@index([templateId])
+}
+
 // ---- Xero integration (owner: sales) ----
 
 /// Admin-confirmed mapping from a Sales market to the Xero Branding Theme
