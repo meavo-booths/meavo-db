@@ -3688,6 +3688,12 @@ enum StockPartnerLocation {
   US_EAST
   US_WEST
   OTHER_EU
+  US_NY
+  US_CHI
+  US_BOS
+  US_HOU
+  US_SF
+  US_LA
 }
 
 /// Partner portal credentials + region recipe for stock.meavo.app.
