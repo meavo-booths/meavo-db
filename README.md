@@ -61,7 +61,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Spare parts / panels (RP) | rp | RpRequest, RpLineItem, RpInternalProductionRow, RpPhoto, RpSheetSyncOutbox, RpSheetRowMap, RpAddressBookEntry, RpPanelCatalogOption, RpExportTrackingRow, RpNumSequence, RpIpNumSequence, RpAutomationState, RpLifecycleEvent, RpPartMrpMap, RpPanelMrpMap, RpSparePart, RpPanelOption |
 | Task management | tasks | TaskWorkspace, TaskWorkspaceMember, TaskBoardColumn, Task, TaskAssignee, TaskExternalLink |
 | Feature requests | requests | FeatureRequest, FeatureRequestVote |
-| Partner stock | stock | StockPartner |
+| Partner stock | stock | StockPartner, StockPartnerVisit |
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.

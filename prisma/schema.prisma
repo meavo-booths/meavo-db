@@ -3706,9 +3706,27 @@ model StockPartner {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
 
-  createdBy User @relation("StockPartnerCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy User   @relation("StockPartnerCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  visits    StockPartnerVisit[]
 
   @@index([isActive])
   @@index([location])
   @@index([createdById])
+}
+
+enum StockPartnerVisitKind {
+  LOGIN
+  PAGE_VIEW
+}
+
+/// Partner login / stock-page view events for staff usage stats (stock.meavo.app).
+model StockPartnerVisit {
+  id         String                @id @default(cuid())
+  partnerId  String
+  kind       StockPartnerVisitKind
+  occurredAt DateTime              @default(now())
+
+  partner StockPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, occurredAt])
 }
