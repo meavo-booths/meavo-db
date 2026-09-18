@@ -696,6 +696,8 @@ model Question {
   sortOrder               Int
   required                Boolean      @default(true)
   endsQuestionnaireOnNo   Boolean      @default(false)
+  /// Follow-up text under a Yes/No fork: false = show if Yes (default), true = show if No.
+  followUpOnNo            Boolean      @default(false)
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 
