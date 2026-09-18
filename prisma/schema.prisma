@@ -88,6 +88,7 @@ model User {
   signatureRequestsAsCompanySigner SignatureRequest[]      @relation("SignatureRequestCompanySigner")
 
   clockWorker                ClockWorker?
+  dealSubscriptions          DealSubscription[]
 
   featureRequestsAuthored FeatureRequest[]     @relation("FeatureRequestAuthor")
   featureRequestVotes     FeatureRequestVote[]
@@ -1279,6 +1280,7 @@ model Deal {
   assemblies       Assembly[]
   auditLogs        DealAuditLog[]
   attachments      DealAttachment[]
+  subscriptions    DealSubscription[]
 
   @@index([stage])
   @@index([dealDate])
@@ -1328,6 +1330,23 @@ model DealAttachment {
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([dealId])
+}
+
+/// Who receives deal update notifications (sales app). The deal's sales rep is
+/// subscribed implicitly (resolved from Deal.salesRep at send time); a row with
+/// muted = true opts the rep out, any other row opts a colleague in.
+model DealSubscription {
+  id        String   @id @default(cuid())
+  dealId    String
+  userId    String
+  muted     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dealId, userId])
+  @@index([userId])
 }
 
 model DealContact {
