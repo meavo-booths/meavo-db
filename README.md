@@ -54,7 +54,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | HR & documents | gateway | CompanyProfile, Employee, EmployeeSalaryHistory, EmployeeDocument, DocumentTemplate*, GeneratedDocument, LibraryAsset, GatewaySheetRecord |
 | Vacation | hols | VacationRequest, UserAllowance, PublicHoliday |
 | Assembly | assembly | Assembly, AssemblyPartner, Questionnaire*, Question*, Submission*, Resource*, SheetImportState |
-| Sales | sales | Product, ProductFamilyInfo, Client*, Deal* (incl. DealSubscription), QuoteLineItem, BoothUnit, HubSpotLostReason, QuotePdfTemplate, QuotePdfMarketDefault |
+| Sales | sales | Product, ProductFamilyInfo, Client*, Deal* (incl. DealSubscription), QuoteLineItem, BoothUnit, HubSpotLostReason, HubSpotDealSnapshot, QuotePdfTemplate, QuotePdfMarketDefault |
 | Notifications | gateway | NotificationOutbox, NotificationDelivery, NotificationEventSetting |
 | Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpMaterialCategory, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine |
 | Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryProduction*, FactoryStationWorkItem, FactoryWorkSession, FactoryQuota, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite |

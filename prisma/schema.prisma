@@ -1565,6 +1565,53 @@ model HubSpotLostReason {
   @@index([archived, displayOrder])
 }
 
+/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).
+/// One row per HubSpot deal, keyed by HubSpot's deal id, refreshed by the sales
+/// HubSpot cron for every Deal row that links to it. Deliberately not a Prisma
+/// relation: linking a quote must never depend on a snapshot existing.
+model HubSpotDealSnapshot {
+  /// HubSpot deal id — matches Deal.hubspotDealId.
+  id               String    @id
+  dealName         String
+  stageId          String?
+  stageLabel       String?
+  /// When the deal entered its current stage (hs_v2_date_entered_<stage>).
+  stageEnteredAt   DateTime?
+  closeDate        DateTime?
+  hubspotCreatedAt DateTime?
+  ownerId          String?
+  /// Resolved from the owners API; null when the token lacks the owners scope.
+  ownerName        String?
+  /// hs_analytics_source / hs_analytics_latest_source.
+  source           String?
+  latestSource     String?
+  /// notes_last_updated — any activity, including notes and completed tasks.
+  lastActivityAt   DateTime?
+  /// hs_last_sales_activity_type, e.g. CALL, EMAIL, MEETING.
+  lastActivityType String?
+  /// notes_last_contacted — calls, one-to-one emails, meetings, messages.
+  lastContactedAt  DateTime?
+  /// hs_sales_email_last_replied.
+  lastReplyAt      DateTime?
+  /// hs_latest_meeting_activity (past or upcoming).
+  lastMeetingAt    DateTime?
+  /// notes_next_activity_date.
+  nextActivityAt   DateTime?
+  nextStep         String?
+  /// num_contacted_notes — times contacted (no notes or tasks).
+  contactedCount   Int?
+  /// num_notes — all sales activities.
+  activityCount    Int?
+  /// Stage label -> cumulative seconds spent (hs_v2_cumulative_time_in_<stage>).
+  stageDurations   Json?
+  syncedAt         DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([lastContactedAt])
+  @@index([nextActivityAt])
+}
+
 // ---- Notifications (owner: gateway) ----
 
 enum NotificationStatus {
