@@ -42,9 +42,10 @@ package.json           # version = release tag; prisma is the only dependency
 ## Data flow
 
 ```
-schema edit → validate → diff (review SQL) → db:push / db execute → live Neon DB
-     └→ commit → version bump → git tag v0.x.y → push --tags
-            └→ each affected app bumps @meavo/db ref → npm install → prisma generate → redeploy
+feat/* schema edit → validate → diff / apply on isolated non-production DB
+     └→ staging PR + SQL / compatibility / rollback review
+            └→ specific human approval → production migration / main / release tag
+                   └→ consumer feature PRs → staging validation → separate production approval
 ```
 
 ## API surface
@@ -65,4 +66,4 @@ Document names only:
 
 ## Deployment
 
-None. Releases are git tags; consuming apps redeploy (Vercel) after bumping their `@meavo/db` ref.
+Package releases use git tags. Follow [RELEASE_POLICY.md](../RELEASE_POLICY.md) for the human approval required before publishing tags, changing `main`, or applying production SQL. Consumers validate dependency bumps on feature/staging previews and obtain separate production approval.

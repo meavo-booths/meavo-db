@@ -19,7 +19,7 @@ Environment: schema-only npm package (`@meavo/db`) — the canonical Prisma 6 sc
 - Rename/delete another app's models, fields, or enums without checking every consumer (ownership table in `README.md`).
 - Duplicate identity tables — foreign-key to the shared gateway `User` / `Team` models.
 - Add app code, seeds, or generated client output — schema + SQL scripts only.
-- Point consumer apps at untagged commits — tag `v0.x.y` first.
+- Publish a tag just to test a consumer. Production dependencies use approved release tags; an immutable staging commit may be used only for documented, non-production validation under `RELEASE_POLICY.md`.
 - Commit `.env` or secret values.
 
 ## Code layout
@@ -34,13 +34,13 @@ Environment: schema-only npm package (`@meavo/db`) — the canonical Prisma 6 sc
 ## Data flow
 
 ```
-edit prisma/schema.prisma → npm run validate → npm run diff (review SQL!)
-  → npm run db:push  (or prisma db execute --file scripts/x.sql for destructive steps)
-  → commit + bump package.json version + git tag v0.x.y + push --tags
-  → bump @meavo/db git ref in each affected app → npm install + prisma generate → redeploy
+feat/* schema edit → validate → diff / test on isolated non-production DB
+  → staging PR with reviewed SQL, consumer compatibility, and rollback notes
+  → specific human approval → production migration / main / release-tag publication
+  → consumer feature PRs → staging validation → separate production approval
 ```
 
-Every schema change must end with a tagged release and a dependency bump in the affected apps — an applied-but-untagged schema leaves apps generating stale clients.
+Prepare a coordinated package release and dependency bumps so schemas and generated clients stay compatible. `RELEASE_POLICY.md` controls approval: never apply production SQL or publish a tag merely to finish a coding task. Stop at reviewed feature/staging changes until the specific production actions are approved.
 
 ## Docs for agents
 
