@@ -2,7 +2,9 @@
 """Check installed release-policy copies and the source of a main pull request.
 
 The manifest detects drift; it is not proof of human authorization. GitHub must
-separately require a human review and this check without a bypass on main.
+require this check and branch protections without a bypass on main. Agents must
+separately stop after verified staging and obtain one human decision, including
+from the PR author; formal GitHub approval is not required or verified here.
 """
 
 import argparse
