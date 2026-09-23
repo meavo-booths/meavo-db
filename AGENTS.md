@@ -1,3 +1,12 @@
+<!-- BEGIN MEAVO RELEASE POLICY -->
+## Release safety — mandatory for all AI agents
+
+- Default scope: create `feat/`, `fix/`, or `chore/` branches from `staging`; use PRs into `staging` and squash only after required checks pass.
+- Do not merge to `main`, enable auto-merge/queue a production PR, or change production without **explicit human approval for this repository, the specific action, and the reviewed PR/head SHA or exact artifact/configuration scope**. Changed scope or head invalidates approval; never infer or generate it. Reuse still-valid approval without asking again.
+- Never push directly to `main`/`staging` or bypass protections. Missing `staging` is not permission to use `main`.
+- Read [RELEASE_POLICY.md](RELEASE_POLICY.md) before any release, deployment, environment, schema, or tag/package publication action. Verify actual environment destinations before writes.
+<!-- END MEAVO RELEASE POLICY -->
+
 # Agent guide — meavo-db
 
 Quick orientation for AI agents working in this repo. Read this before exploring blindly.
@@ -24,7 +33,7 @@ Quick orientation for AI agents working in this repo. Read this before exploring
 | Add a new app's domain | `prisma/schema.prisma` (new owner section at the end) + `README.md` ownership table |
 | Validate the schema | `npm run validate` (needs `DATABASE_URL` in `.env`) |
 | Preview SQL against the live DB | `npm run diff` |
-| Apply schema to the live DB | `npm run db:push` — read [docs/data-model.md](docs/data-model.md) § Applying changes first |
+| Apply schema to an environment | Confirm the database target; test in isolation first. Production writes require specific human approval under [RELEASE_POLICY.md](RELEASE_POLICY.md) and the SQL review in [docs/data-model.md](docs/data-model.md) |
 | Destructive / targeted migration | idempotent SQL like `scripts/add-task-tables.sql`, via `prisma db execute` |
 | Release + consumer bump process | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Factory app migration context | `neon-migration-audit.md` in the private Meavo-Factory repo (not in this repo) |
@@ -40,7 +49,7 @@ Quick orientation for AI agents working in this repo. Read this before exploring
 - Do NOT duplicate `User` / `Team` style identity tables for a new domain — foreign-key to the shared gateway models.
 - Do NOT add app code, seed data, or generated Prisma client output here — schema + SQL scripts only; each app keeps its own seed script.
 - Do NOT commit `.env` or any secret; only `DATABASE_URL`'s *name* is documented.
-- Do NOT bump consumer apps to an untagged commit — tag `v0.x.y` first, then bump the git ref.
+- Do NOT publish a tag just to test a consumer. Production dependencies use approved release tags; an immutable staging commit may be used only for documented, non-production validation under `RELEASE_POLICY.md`.
 
 ## Commands
 
@@ -48,7 +57,7 @@ Quick orientation for AI agents working in this repo. Read this before exploring
 npm install          # installs prisma CLI (only dev dependency)
 npm run validate     # prisma validate (needs DATABASE_URL in .env)
 npm run diff         # SQL preview: live DB vs schema.prisma
-npm run db:push      # apply schema to the shared DB — dangerous, read docs first
+npm run db:push      # confirm isolated test DB; production requires specific human approval
 npm run studio       # browse the live DB
 # no dev / test / lint / build — this is a schema-only package
 ```
@@ -57,7 +66,7 @@ npm run studio       # browse the live DB
 
 1. Schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----` section comments; new models go inside their owner's section.
 2. Naming: PascalCase models, camelCase fields, `cuid()` string IDs, `SCREAMING_SNAKE` enum values. Ported legacy tables keep their snake_case names via `@@map` / `@map`.
-3. Every schema change ships as: edit → `validate` → `diff` → apply → commit → bump `version` in `package.json` → `git tag v0.x.y && git push --tags` → bump `@meavo/db` ref in affected apps.
+3. Prepare schema/version changes on `feat/*` → `validate` → review `diff` and test against an isolated non-production DB → PR to `staging`. Obtain specific human approval under `RELEASE_POLICY.md` before production SQL, `main` promotion, or tag/package publication. Prepare consumer dependency bumps through their own feature/staging workflow.
 4. Destructive or data-migrating steps go in an idempotent `scripts/*.sql` (`DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL`) with an "Apply:" comment header, not through `db push`.
 5. Commit messages: imperative sentence describing the schema change and the app it serves, e.g. "Add task management schema for tasks.meavo.app".
 

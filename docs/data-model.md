@@ -46,13 +46,13 @@ All satellite domains foreign-key to the shared `User` / `Team` — never duplic
 
 ## Applying changes (migration safety)
 
-There is **no Prisma migrations directory** — the workflow is `db push` against the live shared DB:
+There is **no Prisma migrations directory**. Follow [RELEASE_POLICY.md](../RELEASE_POLICY.md): test schema changes on an isolated non-production database and review them through `staging` before requesting approval for the exact production SQL and revision. The commands below are not permission to write to the shared production DB:
 
 1. Edit `prisma/schema.prisma`; `npm run validate`.
 2. `npm run diff` — **read the generated SQL**. Anything with `DROP` needs to be understood before going further; a stale or trimmed schema will drop other apps' tables.
 3. Additive changes: `npm run db:push`.
 4. Destructive or ordering-sensitive changes: write an **idempotent** script in `scripts/` (wrap `CREATE TYPE` etc. in `DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL`), with an `-- Apply:` header, and run `npx prisma db execute --file scripts/<file>.sql --schema prisma/schema.prisma`. See `scripts/add-task-tables.sql` for the pattern.
-5. Commit, bump `version` in `package.json`, `git tag v0.x.y && git push --tags`, then bump the `@meavo/db` ref in each affected app and redeploy.
+5. Commit the version/schema changes on `feat/*` and open a PR against `staging`. Production application, `main` promotion, and release-tag/package publication require specific human approval. After the approved package release, prepare dependency bumps through each consumer’s feature-to-staging workflow.
 
 Consumer apps must **never** run `db:push` themselves — their partial schemas would drop everyone else's tables.
 

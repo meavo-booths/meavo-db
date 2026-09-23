@@ -1,0 +1,16 @@
+---
+description: Mandatory MEAVO feature/staging workflow and explicit human production approval
+alwaysApply: true
+---
+
+# MEAVO release safety
+
+Read root `RELEASE_POLICY.md` before any release, deployment, environment, schema, or tag/package publication action. It applies to every agent, including agents using human credentials.
+
+- Create `feat/`, `fix/`, or `chore/` branches from `staging`; explicitly target `staging` in PRs and squash only after required checks pass.
+- Never push directly to `main` or `staging`, force-push/delete them, or bypass a protection. Missing staging is not permission to release to main.
+- **Before merging to `main`, enabling auto-merge, queueing a production PR, or making any production deployment/promotion/rollback/environment/schema/release-tag/package change, verify explicit permission from a real human for this repository, the exact action, and the current reviewed PR/head SHA or artifact/configuration scope.**
+- Never infer permission from a coding request, green CI, a label, access credentials, prior releases, silence, or an agent-generated approval. Changed scope or content requires new human approval; do not ask again when approval still covers the unchanged action.
+- Production PRs must be this repository's `staging` → `main` and use a merge commit. Satisfy required independent review and checks; recheck approved head immediately before acting. Do not replace this process with a CLI/API/dashboard release.
+- Verify the actual provider project, target environment, database, storage, and external-service destinations before writes. Preview and local environments are not assumed safe merely because of their names.
+- Complete authorized feature/staging work and leave production pending if approval is missing. Repository files and hooks are guidance, not proof of server enforcement; report protection gaps without exploiting them.
