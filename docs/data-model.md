@@ -14,7 +14,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `DocumentTemplate*`, `GeneratedDocument`, `LibraryAsset`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner`, `Questionnaire*`, `QuestionnaireSubmission`, `Resource*`, `SheetImportState` |
-| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `Deal`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
+| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `Deal`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
 | Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroIntegrationSettings` |
 | Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting` |
 | Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpElementBomLine`, ... |
@@ -55,6 +55,34 @@ There is **no Prisma migrations directory** — the workflow is `db push` agains
 5. Commit, bump `version` in `package.json`, `git tag v0.x.y && git push --tags`, then bump the `@meavo/db` ref in each affected app and redeploy.
 
 Consumer apps must **never** run `db:push` themselves — their partial schemas would drop everyone else's tables.
+
+## Sales client profiles
+
+`Client.notes` stores shared plain-text notes, initially empty. Custom labels use
+the reusable `ClientLabel` catalogue and `ClientLabelAssignment` composite key;
+the Sales app trims names and stores the lower-case value in `normalizedName`.
+Its unique index prevents duplicate labels regardless of case. Notes, label
+assignments, and events are per client and never inherited across the hierarchy.
+
+`ClientEvent` records date-only activity, attribution, and an optional
+`Decimal(12,2)` expense with EUR, GBP, USD, or CZK currency. SQL checks require a
+nonnegative amount paired with a supported currency, or both fields absent.
+Creator/editor names remain as historical attribution when a shared `User` is
+deleted; nullable user links use `SET NULL`.
+
+`ClientEventReceipt` reserves a unique server-generated `storageKey` before an
+upload and tracks `PENDING`, `READY`, and `DELETE_PENDING` states. The Sales app
+validates uploaded metadata before exposing a receipt, and retries failed file
+cleanup without dropping its storage key. Soft-deleted events remain until every
+receipt has been removed; `RESTRICT` foreign keys block premature event/client
+deletion. Only non-deleted events contribute to visible timelines and expense
+totals. Cleanup and app authorization are implemented by Sales.
+
+Apply `scripts/client-profile-activity.sql` for this change, including on an
+environment already updated with `db push`: Prisma does not express the expense
+and normalized-name CHECK constraints. The script is additive, transactional,
+and idempotent. Review the live schema diff before applying, then follow the
+tagged release and consumer-bump process above.
 
 ## Sync / external copies
 
