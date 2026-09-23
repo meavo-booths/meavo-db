@@ -1585,6 +1585,8 @@ model HubSpotDealSnapshot {
   /// hs_analytics_source / hs_analytics_latest_source.
   source           String?
   latestSource     String?
+  /// Custom "Source Channel" deal property (sub-category of source), stored as its option label.
+  sourceChannel    String?
   /// notes_last_updated — any activity, including notes and completed tasks.
   lastActivityAt   DateTime?
   /// hs_last_sales_activity_type, e.g. CALL, EMAIL, MEETING.
