@@ -1336,6 +1336,10 @@ model Deal {
   /// Set when payment status was first synced from Xero; locks manual payment edits.
   xeroPaymentSyncedAt DateTime?
 
+  /// Cash collected so far, in the invoice currency, excl. VAT. Set by the Xero
+  /// payment sync and manual payment edits (owner: sales). Null until first set.
+  amountCollected Decimal? @db.Decimal(12, 2)
+
   // US sales tax (Zamp) — computed on quote save for US market; committed on win.
   usTaxAmount       Decimal        @default(0) @db.Decimal(12, 2)
   usTaxDetail       Json?
@@ -1377,6 +1381,7 @@ model Deal {
   auditLogs        DealAuditLog[]
   attachments      DealAttachment[]
   subscriptions    DealSubscription[]
+  labels           DealLabelAssignment[]
 
   @@index([stage])
   @@index([dealDate])
@@ -1426,6 +1431,30 @@ model DealAttachment {
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([dealId])
+}
+
+/// Reusable deal label (sales app). `normalizedName` is the trimmed lower-case
+/// name, so labels are unique regardless of case.
+model DealLabel {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  deals DealLabelAssignment[]
+}
+
+model DealLabelAssignment {
+  dealId    String
+  labelId   String
+  createdAt DateTime @default(now())
+
+  deal  Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  label DealLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([dealId, labelId])
+  @@index([labelId])
 }
 
 /// Who receives deal update notifications (sales app). The deal's sales rep is
