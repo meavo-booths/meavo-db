@@ -113,6 +113,10 @@ model User {
   factoryPanelScrapReports     FactoryPanelScrapReport[] @relation("FactoryPanelScrapReporter")
   factoryScrapReportsResolved  FactoryPanelScrapReport[] @relation("FactoryScrapReportResolver")
   factoryStationIssuesResolved FactoryStationIssue[]     @relation("FactoryStationIssueResolver")
+
+  inventoryAccess           InventoryAccess[]
+  inventoryAuditEvents      InventoryAuditEvent[]
+  inventoryAllocations      InventoryAllocation[] @relation("InventoryAllocationConfirmer")
 }
 
 model Account {
@@ -4732,4 +4736,544 @@ model SalesOpportunityQualificationEvent {
   actorName String
   createdAt DateTime
   @@index([familyId, createdAt], map: "SalesOpportunityQualificationEvent_family_idx")
+}
+
+// ---- Physical booth inventory (owner: inventory, inventory.meavo.app) ----
+// SQL-only checks and partial unique indexes: scripts/add-inventory-v1.sql.
+// Apply that reviewed script, not db push alone. No FK to disposable Factory
+// units or Sales rows: source keys link integrations without deleting history.
+
+enum InventoryWarehouseKind {
+  LOCAL
+  CENTRAL
+}
+
+enum InventoryVoltage {
+  UNKNOWN
+  V110_120
+  V220_240
+}
+
+enum InventoryRole {
+  VIEWER
+  SALES
+  OPS_PRODUCT
+  WAREHOUSE
+  FACTORY
+  ADMIN
+}
+
+enum InventoryDemandKind {
+  QUOTE
+  DEAL
+}
+
+enum InventoryDemandState {
+  OPEN
+  WON
+  CANCELLED
+}
+
+enum InventoryAllocationKind {
+  QUOTE_HOLD
+  COMMITTED
+}
+
+enum InventoryAllocationStatus {
+  ACTIVE
+  RELEASED
+  EXPIRED
+  FULFILLED
+}
+
+enum InventoryTransferStatus {
+  DRAFT
+  IN_TRANSIT
+  PARTIAL_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum InventoryPreparationKind {
+  SOCKET_FITTING
+  CHECK
+  PICKING
+}
+
+enum InventoryPreparationStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+enum InventoryIntegrationStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+model InventoryAccess {
+  id        String        @id @default(cuid())
+  userId    String
+  role      InventoryRole @default(VIEWER)
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+model InventoryWarehouse {
+  id          String                 @id @default(cuid())
+  code        String                 @unique
+  name        String
+  kind        InventoryWarehouseKind @default(LOCAL)
+  countryCode String
+  regionCode  String?
+  address     String                 @default("")
+  active      Boolean                @default(true)
+  metadata    Json?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  serviceRules      InventoryWarehouseServiceRule[]
+  spots             InventorySpot[]
+  pallets           InventoryPallet[]
+  units             InventoryUnit[]                 @relation("InventoryCurrentWarehouse")
+  incomingUnits     InventoryUnit[]                 @relation("InventoryIntendedWarehouse")
+  preferredDemands  InventoryDemand[]
+  outgoingTransfers InventoryTransfer[]             @relation("InventoryTransferOrigin")
+  incomingTransfers InventoryTransfer[]             @relation("InventoryTransferDestination")
+  outgoingItems     InventoryTransferItem[]         @relation("InventoryTransferItemOrigin")
+  incomingItems     InventoryTransferItem[]         @relation("InventoryTransferItemDestination")
+
+  @@index([kind, active])
+}
+
+model InventoryWarehouseServiceRule {
+  id            String   @id @default(cuid())
+  warehouseId   String
+  countryCode   String
+  regionCode    String?
+  postalPrefix  String?
+  priority      Int      @default(100)
+  leadTimeDays  Int      @default(0)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  warehouse     InventoryWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@index([countryCode, active, priority])
+  @@index([warehouseId])
+}
+
+model InventorySpot {
+  id          String   @id @default(cuid())
+  warehouseId String
+  code        String
+  name        String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  warehouse   InventoryWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  pallets     InventoryPallet[]
+
+  @@unique([warehouseId, code])
+  @@unique([id, warehouseId])
+}
+
+model InventoryPallet {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  warehouseId String?
+  spotId      String?
+  notes       String   @default("")
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  warehouse   InventoryWarehouse? @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  spot        InventorySpot?      @relation(fields: [spotId, warehouseId], references: [id, warehouseId], onDelete: Restrict)
+  contents    InventoryPalletContent[]
+
+  @@index([warehouseId])
+  @@index([spotId, warehouseId])
+}
+
+model InventoryFactory {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  active       Boolean  @default(true)
+  sourceSystem String?
+  sourceId     String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  batches      InventoryBatch[]
+  units        InventoryUnit[]
+
+  @@unique([sourceSystem, sourceId])
+}
+
+model InventoryBatch {
+  id           String   @id @default(cuid())
+  factoryId    String
+  batchNumber  String
+  sourceSystem String?
+  sourceId     String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  factory      InventoryFactory @relation(fields: [factoryId], references: [id], onDelete: Restrict)
+  units        InventoryUnit[]
+
+  @@unique([factoryId, batchNumber])
+  @@unique([sourceSystem, sourceId])
+  @@unique([id, factoryId])
+}
+
+/// code identifies the exact reviewed finish, including custom colour/material.
+/// A generic "Custom" or unknown finish must never be an automatic match.
+model InventoryFinish {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  details      Json?
+  active       Boolean  @default(true)
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  units        InventoryUnit[]
+  demandLines  InventoryDemandLine[]
+  mappings     InventoryCatalogMapping[]
+}
+
+/// Explicit Factory/MRP/Sales catalog aliases; raw display names are not joins.
+model InventoryCatalogMapping {
+  id             String              @id @default(cuid())
+  sourceSystem   String
+  sourceKind     String
+  sourceId       String
+  family         BoothProductFamily?
+  finishId       String?
+  recipeRevision String?
+  metadata       Json?
+  reviewedAt     DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  finish         InventoryFinish?    @relation(fields: [finishId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceSystem, sourceKind, sourceId])
+  @@index([finishId])
+}
+
+model InventoryUnit {
+  id                    String             @id @default(cuid())
+  family                BoothProductFamily
+  finishId              String
+  voltage               InventoryVoltage   @default(UNKNOWN)
+  /// Canonical installed socket code, e.g. GB/US/EU; null means not fitted.
+  socketType            String?
+  productVersion        String?
+  batchId               String?
+  factoryId             String?
+  status                BoothUnitStatus    @default(PLANNED)
+  /// Actual location, null while in transit or when packages are split.
+  warehouseId           String?
+  intendedWarehouseId   String?
+  expectedReadyAt       DateTime?
+  receivedAt            DateTime?
+  packedCheckedAt       DateTime?
+  packedCheckedById     String?
+  /// Stable identity, never moved to a replacement booth or reset on release.
+  serialNumber          Int?               @unique
+  serialCode            String?            @unique
+  serialPrefix          String?
+  serialIssuedAt        DateTime?
+  version               Int                @default(0)
+  blockedReason         String?
+  dispatchedAt          DateTime?
+  retiredAt             DateTime?
+  sourceSystem          String?
+  sourceId              String?
+  metadata              Json?
+  notes                 String             @default("")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  finish           InventoryFinish     @relation(fields: [finishId], references: [id], onDelete: Restrict)
+  batch            InventoryBatch?     @relation(fields: [batchId, factoryId], references: [id, factoryId], onDelete: Restrict)
+  factory          InventoryFactory?   @relation(fields: [factoryId], references: [id], onDelete: Restrict)
+  warehouse        InventoryWarehouse? @relation("InventoryCurrentWarehouse", fields: [warehouseId], references: [id], onDelete: Restrict)
+  intendedWarehouse InventoryWarehouse? @relation("InventoryIntendedWarehouse", fields: [intendedWarehouseId], references: [id], onDelete: Restrict)
+  palletContents   InventoryPalletContent[]
+  allocations      InventoryAllocation[]
+  transferItems    InventoryTransferItem[]
+  preparationTasks InventoryPreparationTask[]
+  auditEvents      InventoryAuditEvent[]
+
+  @@unique([sourceSystem, sourceId])
+  @@index([family, finishId, voltage, status])
+  @@index([warehouseId, status])
+  @@index([intendedWarehouseId])
+  @@index([factoryId])
+  @@index([batchId, factoryId])
+}
+
+/// One durable package/component grouping. A unit may have many packages and
+/// a pallet may have packages from many units. Locations derive from all parts.
+model InventoryPalletContent {
+  id          String   @id @default(cuid())
+  unitId      String
+  palletId    String
+  packageKey  String
+  description String   @default("")
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  unit        InventoryUnit   @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  pallet      InventoryPallet @relation(fields: [palletId], references: [id], onDelete: Restrict)
+  transferItems InventoryTransferItem[]
+
+  @@unique([unitId, packageKey])
+  @@unique([id, unitId])
+  @@index([palletId])
+}
+
+model InventoryDemand {
+  id                     String               @id @default(cuid())
+  sourceSystem           String
+  sourceId               String
+  kind                   InventoryDemandKind
+  state                  InventoryDemandState @default(OPEN)
+  dealId                 String?
+  quoteId                String?
+  reference              String?
+  customerName           String?
+  countryCode            String?
+  regionCode             String?
+  postalCode             String?
+  preferredWarehouseId   String?
+  requiredAt             DateTime?
+  activeVariationKey     String?
+  version                Int                  @default(0)
+  /// Upstream monotonic revision; can hold updatedAt epoch milliseconds.
+  sourceVersion          BigInt               @default(0)
+  reservationRequestedAt DateTime?
+  reservationRequestedById String?
+  metadata               Json?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  preferredWarehouse     InventoryWarehouse?  @relation(fields: [preferredWarehouseId], references: [id], onDelete: Restrict)
+  lines                  InventoryDemandLine[]
+  suggestions            InventorySuggestion[]
+  auditEvents            InventoryAuditEvent[]
+
+  @@unique([sourceSystem, sourceId])
+  @@index([dealId])
+  @@index([quoteId])
+  @@index([state, kind])
+  @@index([preferredWarehouseId])
+}
+
+/// Slots 1..quantity identify independently allocatable booths on this line.
+/// Source lines may be retired (active=false), never cascade-delete allocations.
+model InventoryDemandLine {
+  id              String              @id @default(cuid())
+  demandId        String
+  sourceLineId    String
+  family          BoothProductFamily
+  finishId        String?
+  voltage         InventoryVoltage    @default(UNKNOWN)
+  socketType      String?
+  productVersion  String?
+  quantity        Int
+  active          Boolean             @default(true)
+  metadata        Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  demand          InventoryDemand     @relation(fields: [demandId], references: [id], onDelete: Restrict)
+  finish          InventoryFinish?    @relation(fields: [finishId], references: [id], onDelete: Restrict)
+  allocations     InventoryAllocation[]
+
+  @@unique([demandId, sourceLineId])
+  @@index([finishId])
+}
+
+/// Advisory snapshot only. items carries lineId, slot, unitId, unitVersion,
+/// reason and preparation; generating this record never reserves or numbers.
+model InventorySuggestion {
+  id            String   @id @default(cuid())
+  demandId      String
+  demandVersion Int
+  items         Json
+  shortages     Json?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime?
+  demand        InventoryDemand @relation(fields: [demandId], references: [id], onDelete: Restrict)
+
+  @@index([demandId, createdAt])
+}
+
+model InventoryAllocation {
+  id              String                    @id @default(cuid())
+  unitId          String
+  demandLineId    String
+  slot            Int                       @default(1)
+  kind            InventoryAllocationKind
+  status          InventoryAllocationStatus @default(ACTIVE)
+  reservedAt      DateTime                  @default(now())
+  expiresAt       DateTime?
+  confirmedAt     DateTime                  @default(now())
+  confirmedById   String?
+  requestedById   String?
+  protectedByOps  Boolean                   @default(false)
+  reason          String?
+  releasedAt      DateTime?
+  releasedById    String?
+  releaseReason   String?
+  version         Int                       @default(0)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  unit            InventoryUnit            @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  demandLine      InventoryDemandLine      @relation(fields: [demandLineId], references: [id], onDelete: Restrict)
+  confirmedBy     User?                    @relation("InventoryAllocationConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+  preparationTasks InventoryPreparationTask[]
+
+  // SQL partial indexes enforce one ACTIVE allocation per unit and demand slot.
+  // Expired ACTIVE holds must be expired in the same transaction before claim.
+  @@unique([id, unitId])
+  @@index([unitId, status])
+  @@index([demandLineId, status])
+  @@index([status, expiresAt])
+  @@index([confirmedById])
+}
+
+model InventorySerialSequence {
+  id         String   @id @default("global")
+  nextNumber Int      @default(40000)
+  updatedAt  DateTime @updatedAt
+}
+
+model InventoryTransfer {
+  id                     String                  @id @default(cuid())
+  reference              String                  @unique
+  originWarehouseId      String
+  destinationWarehouseId String
+  status                 InventoryTransferStatus @default(DRAFT)
+  expectedAt             DateTime?
+  dispatchedAt           DateTime?
+  receivedAt             DateTime?
+  createdById            String?
+  dispatchedById         String?
+  receivedById           String?
+  notes                  String                  @default("")
+  metadata               Json?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  originWarehouse        InventoryWarehouse @relation("InventoryTransferOrigin", fields: [originWarehouseId], references: [id], onDelete: Restrict)
+  destinationWarehouse   InventoryWarehouse @relation("InventoryTransferDestination", fields: [destinationWarehouseId], references: [id], onDelete: Restrict)
+  items                  InventoryTransferItem[]
+
+  @@unique([id, originWarehouseId, destinationWarehouseId])
+  @@index([originWarehouseId, status])
+  @@index([destinationWarehouseId, status])
+}
+
+model InventoryTransferItem {
+  id                     String   @id @default(cuid())
+  transferId             String
+  unitId                 String
+  /// Null means a complete, unpackaged unit; otherwise this exact package only.
+  contentId              String?
+  quantity               Int      @default(1)
+  receivedQuantity       Int      @default(0)
+  originWarehouseId      String
+  destinationWarehouseId String
+  receivedAt             DateTime?
+  receivedById           String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  transfer               InventoryTransfer @relation(fields: [transferId, originWarehouseId, destinationWarehouseId], references: [id, originWarehouseId, destinationWarehouseId], onDelete: Restrict)
+  unit                   InventoryUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  content                InventoryPalletContent? @relation(fields: [contentId, unitId], references: [id, unitId], onDelete: Restrict)
+  originWarehouse        InventoryWarehouse @relation("InventoryTransferItemOrigin", fields: [originWarehouseId], references: [id], onDelete: Restrict)
+  destinationWarehouse   InventoryWarehouse @relation("InventoryTransferItemDestination", fields: [destinationWarehouseId], references: [id], onDelete: Restrict)
+
+  @@index([transferId])
+  @@index([unitId])
+  @@index([contentId, unitId])
+  @@index([originWarehouseId])
+  @@index([destinationWarehouseId])
+}
+
+model InventoryPreparationTask {
+  id             String                     @id @default(cuid())
+  unitId         String
+  allocationId   String?
+  kind           InventoryPreparationKind
+  status         InventoryPreparationStatus @default(OPEN)
+  socketType     String?
+  notes          String                     @default("")
+  completedAt    DateTime?
+  completedById  String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  unit           InventoryUnit             @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  allocation     InventoryAllocation?      @relation(fields: [allocationId, unitId], references: [id, unitId], onDelete: Restrict)
+
+  @@index([unitId, status])
+  @@index([allocationId])
+}
+
+model InventoryAuditEvent {
+  id          String   @id @default(cuid())
+  unitId      String?
+  demandId    String?
+  actorId     String?
+  actorName   String?
+  action      String
+  reason      String?
+  before      Json?
+  after       Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  actor       User?            @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  unit        InventoryUnit?   @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  demand      InventoryDemand? @relation(fields: [demandId], references: [id], onDelete: Restrict)
+
+  @@index([unitId, createdAt])
+  @@index([demandId, createdAt])
+  @@index([actorId])
+}
+
+/// Written atomically with the action result. Reuse is allowed only when the
+/// payloadHash matches; a retry replays result rather than allocating again.
+model InventoryOperation {
+  key         String   @id
+  kind        String
+  payloadHash String
+  result      Json
+  actorId     String?
+  createdAt   DateTime @default(now())
+}
+
+/// Durable integration inbox/outbox. Sales/Factory enqueue in their own DB
+/// transaction; Inventory alone processes and writes the physical domain.
+model InventoryIntegrationEvent {
+  id            String                     @id @default(cuid())
+  sourceSystem  String
+  sourceEventId String
+  action        String
+  actorUserId   String?
+  payload       Json
+  payloadHash   String?
+  status        InventoryIntegrationStatus @default(PENDING)
+  attempts      Int                        @default(0)
+  lastError     String?
+  createdAt     DateTime                   @default(now())
+  processedAt   DateTime?
+
+  @@unique([sourceSystem, sourceEventId])
+  @@index([status, createdAt])
 }
