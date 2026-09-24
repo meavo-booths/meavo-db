@@ -14,7 +14,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `DocumentTemplate*`, `GeneratedDocument`, `LibraryAsset`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner`, `Questionnaire*`, `QuestionnaireSubmission`, `Resource*`, `SheetImportState` |
-| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `Deal`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
+| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `Deal`, `DealLabel`, `DealLabelAssignment`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
 | Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroIntegrationSettings` |
 | Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting` |
 | Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpElementBomLine`, ... |
@@ -55,6 +55,17 @@ There is **no Prisma migrations directory**. Follow [RELEASE_POLICY.md](../RELEA
 5. Commit the version/schema changes on `feat/*` and open a PR against `staging`. Production application, `main` promotion, and release-tag/package publication require specific human approval. After the approved package release, prepare dependency bumps through each consumer’s feature-to-staging workflow.
 
 Consumer apps must **never** run `db:push` themselves — their partial schemas would drop everyone else's tables.
+
+## Sales deal collections and labels
+
+`Deal.amountCollected` is the cash collected so far on a won deal, in the
+invoice currency and excluding VAT (the same basis as the Ops File's "Amount
+Collected" column). The Sales app sets it from the Xero payment sync and from
+manual payment edits; null means it has not been recorded yet.
+
+`DealLabel` / `DealLabelAssignment` mirror the client label tables: a reusable
+catalogue with a case-insensitive unique `normalizedName` (SQL check keeps it
+equal to `lower(btrim(name))`) and a composite-key assignment per deal.
 
 ## Sales client profiles
 
