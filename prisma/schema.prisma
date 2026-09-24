@@ -92,6 +92,9 @@ model User {
   clientEventsCreated        ClientEvent[]        @relation("ClientEventCreator")
   clientEventsUpdated        ClientEvent[]        @relation("ClientEventEditor")
   clientEventReceiptsUploaded ClientEventReceipt[] @relation("ClientEventReceiptUploader")
+  salesRepIdentities          SalesRepIdentity[]
+  salesPriorityRecommendations SalesPriorityRecommendation[]
+  salesPriorityFeedback      SalesPriorityFeedback[]
 
   featureRequestsAuthored FeatureRequest[]     @relation("FeatureRequestAuthor")
   featureRequestVotes     FeatureRequestVote[]
@@ -1737,6 +1740,136 @@ model HubSpotDealSnapshot {
 
   @@index([lastContactedAt])
   @@index([nextActivityAt])
+}
+
+/// Verified Sales rep-to-account mapping; ownership never depends on who created a quote.
+model SalesRepIdentity {
+  id             String   @id @default(cuid())
+  canonicalName  String   @unique
+  userId         String
+  hubspotOwnerId String?  @unique
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// One analysis run per UTC date, with an explicit input cutoff and Sofia morning deadline.
+model SalesPriorityRun {
+  id            String    @id @default(cuid())
+  runDate       DateTime  @unique @db.Date
+  status        String    @default("PENDING")
+  cutoffAt      DateTime
+  deadlineAt    DateTime
+  model         String
+  promptVersion String
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  workItems       SalesPriorityWorkItem[]
+  snapshots       SalesOpportunitySnapshot[]
+  recommendations SalesPriorityRecommendation[]
+}
+
+/// Durable leased work queue. The app validates kind/status and stores usage/cost in result.
+model SalesPriorityWorkItem {
+  id             String    @id @default(cuid())
+  runId          String
+  kind           String
+  key            String
+  /// Historical recipient attribution; deliberately no User foreign key.
+  userId         String?
+  familyId       String?
+  status         String    @default("PENDING")
+  attempts       Int       @default(0)
+  availableAt    DateTime  @default(now())
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  input          Json
+  result         Json?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  finishedAt     DateTime?
+
+  run SalesPriorityRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, kind, key])
+  @@index([status, availableAt])
+}
+
+/// Dated input features, finalized with the accepted assessment, one per quote family per run. Native IDs are
+/// scalar historical references, so deleting a source deal or user preserves evidence.
+model SalesOpportunitySnapshot {
+  id         String   @id @default(cuid())
+  runId      String
+  familyId   String
+  dealId     String
+  userId     String?
+  capturedAt DateTime
+  data       Json
+
+  run SalesPriorityRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, familyId])
+}
+
+/// Latest enriched CRM payload. Historical model inputs live in opportunity snapshots.
+model SalesCrmSnapshot {
+  hubspotDealId String   @id
+  payload       Json
+  status        String
+  fetchedAt     DateTime
+  updatedAt     DateTime @updatedAt
+}
+
+/// Company-level public research cache; facts include their source and retrieval evidence.
+model SalesCompanyResearch {
+  domain      String   @id
+  companyName String
+  facts       Json
+  status      String
+  fetchedAt   DateTime
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+}
+
+/// A rep's ranked daily opportunity suggestion with grounded, versioned JSON content.
+model SalesPriorityRecommendation {
+  id          String   @id @default(cuid())
+  runId       String
+  userId      String
+  familyId    String
+  dealId      String
+  rank        Int
+  content     Json
+  generatedAt DateTime @default(now())
+
+  run      SalesPriorityRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  user     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedback SalesPriorityFeedback[]
+
+  @@unique([runId, userId, familyId])
+  @@index([userId, generatedAt])
+}
+
+/// Rep feedback is idempotent per recommendation, actor, and kind.
+model SalesPriorityFeedback {
+  id               String   @id @default(cuid())
+  recommendationId String
+  userId           String
+  /// HELPFUL, DISMISSED, or ACTED; validated by Sales.
+  kind             String
+  createdAt        DateTime @default(now())
+
+  recommendation SalesPriorityRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([recommendationId, userId, kind])
+  @@index([userId])
 }
 
 // ---- Notifications (owner: gateway) ----
