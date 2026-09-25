@@ -73,6 +73,8 @@ model User {
   mrpDocumentsApproved       MrpDocument[]        @relation("MrpDocumentApprover")
   mrpCorrectionLogs          MrpCorrectionLog[]   @relation("MrpCorrectionAuthor")
   mrpRecipeExceptionsCreated MrpRecipeException[] @relation("MrpRecipeExceptionCreator")
+  mrpRecipeVersionsCreated   MrpRecipeVersion[]   @relation("MrpRecipeVersionCreator")
+  mrpElectricAssemblyVersions MrpElectricAssemblyVersion[] @relation("MrpElectricAssemblyVersionCreator")
   mrpStockMovementsCreated   MrpStockMovement[]   @relation("MrpStockMovementCreator")
   mrpProductionBatchesCreated MrpProductionBatch[] @relation("MrpProductionBatchCreator")
   mrpInventoryCountsCreated  MrpInventoryCount[]  @relation("MrpInventoryCountCreator")
@@ -102,6 +104,8 @@ model User {
 
   featureRequestsAuthored FeatureRequest[]     @relation("FeatureRequestAuthor")
   featureRequestVotes     FeatureRequestVote[]
+
+  stockPartnersCreated    StockPartner[]       @relation("StockPartnerCreator")
 }
 
 model Account {
@@ -2061,6 +2065,26 @@ enum MrpManufacturingBatchStatus {
   cancelled
 }
 
+
+enum MrpRecipeVersionStatus {
+  draft
+  ready
+  archived
+}
+
+enum MrpRecipeVersionPanelChangeType {
+  unchanged
+  recipe_changed
+  added
+  removed
+  renamed
+}
+
+enum MrpRecipeVersionElectricParityMode {
+  same_as_source
+  different
+}
+
 enum MrpRecipeExceptionStatus {
   active
   reverted
@@ -2277,6 +2301,8 @@ model MrpBoothModel {
   elements             MrpBoothElement[]
   manufacturingBatches MrpManufacturingBatch[]
   exceptionScopes      MrpRecipeExceptionScope[]
+  electricAssemblies   MrpElectricAssembly[]
+  recipeVersions       MrpRecipeVersion[]
 }
 
 /// Checklist column on batch Опаковане tab (Таван, Под, …) per model.
@@ -2297,6 +2323,7 @@ model MrpBoothElement {
   batchUnitElements MrpBatchUnitElement[]
   exceptionChanges  MrpRecipeExceptionLineChange[]
   rpPanelMaps       RpPanelMrpMap[]
+  versionPanels     MrpRecipeVersionPanel[]
 
   @@unique([boothModelId, sheetHeader])
   @@unique([boothModelId, simpleName])
@@ -2349,6 +2376,7 @@ model MrpMaterial {
   productionBatchLines MrpProductionBatchLine[]
   inventoryCounts      MrpInventoryCount[]
   rpPartMaps           RpPartMrpMap[]
+  electricModuleLines  MrpElectricModuleLine[]
 
   @@index([name])
   @@index([isActive])
@@ -2366,9 +2394,10 @@ model MrpBomMissingMaterialCode {
 
 /// Materials consumed to complete one element on one booth.
 model MrpElementBomLine {
-  id             String   @id @default(cuid())
-  boothElementId String
-  materialId     String
+  id              String   @id @default(cuid())
+  recipeVersionId String?
+  boothElementId  String
+  materialId      String
   /// Empty/null = all exterior colours (wildcard).
   colour         String?
   /// null = all markets; default = non-US; US = US booths only.
@@ -2376,10 +2405,205 @@ model MrpElementBomLine {
   quantity       Decimal  @db.Decimal(18, 4)
   createdAt      DateTime @default(now())
 
-  boothElement MrpBoothElement @relation(fields: [boothElementId], references: [id], onDelete: Cascade)
-  material     MrpMaterial     @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  recipeVersion MrpRecipeVersion? @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+  boothElement  MrpBoothElement    @relation(fields: [boothElementId], references: [id], onDelete: Cascade)
+  material      MrpMaterial        @relation(fields: [materialId], references: [id], onDelete: Restrict)
 
-  @@unique([boothElementId, colour, market, materialId])
+  @@unique([recipeVersionId, boothElementId, colour, market, materialId])
+  @@index([recipeVersionId])
+}
+
+
+/// Reusable electric sub-recipe (loom / kit). Not a packing-panel element.
+model MrpElectricModule {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  /// Manufacturing / drawing number for the module as a whole.
+  partCode  String   @unique
+  name      String
+  notes     String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines         MrpElectricModuleLine[]
+  assemblyLines MrpElectricAssemblyLine[]
+}
+
+/// Materials that make up one electric module.
+model MrpElectricModuleLine {
+  id         String   @id @default(cuid())
+  moduleId   String
+  materialId String
+  /// null = all markets; default = non-US; US = US only.
+  market     String?
+  quantity   Decimal  @db.Decimal(18, 4)
+  createdAt  DateTime @default(now())
+
+  module   MrpElectricModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  material MrpMaterial       @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@unique([moduleId, market, materialId])
+  @@index([materialId])
+}
+
+/// Booth-level electric recipe composed only of modules (no loose materials).
+model MrpElectricAssembly {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  boothModelId String
+  /// Optional station: ceiling | table | ports | full
+  kind         String?
+  notes        String?
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  boothModel            MrpBoothModel              @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
+  lines                 MrpElectricAssemblyLine[]
+  versionElectricRefs   MrpRecipeVersionElectric[]
+  assemblyVersions      MrpElectricAssemblyVersion[]
+
+  @@index([boothModelId])
+}
+
+model MrpElectricAssemblyLine {
+  id         String   @id @default(cuid())
+  assemblyId String
+  moduleId   String
+  quantity   Decimal  @db.Decimal(18, 4)
+  createdAt  DateTime @default(now())
+
+  assembly MrpElectricAssembly @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  module   MrpElectricModule   @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+
+  @@unique([assemblyId, moduleId])
+  @@index([moduleId])
+}
+
+
+/// Published recipe snapshot for a booth model (V1.1, V1.2, Legacy, …).
+model MrpRecipeVersion {
+  id              String                   @id @default(cuid())
+  boothModelId    String
+  label           String
+  status          MrpRecipeVersionStatus   @default(draft)
+  notes           String?
+  isDefault       Boolean                  @default(false)
+  sourceVersionId String?
+  createdById     String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  boothModel        MrpBoothModel                  @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
+  sourceVersion     MrpRecipeVersion?              @relation("MrpRecipeVersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
+  derivedVersions   MrpRecipeVersion[]             @relation("MrpRecipeVersionSource")
+  createdBy         User?                          @relation("MrpRecipeVersionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  panels            MrpRecipeVersionPanel[]
+  bomLines          MrpElementBomLine[]
+  electricSnapshots MrpRecipeVersionElectric[]
+  batches           MrpManufacturingBatch[]
+  batchLinks        MrpRecipeVersionBatchLink[]
+
+  @@unique([boothModelId, label])
+  @@index([boothModelId, status])
+  @@index([boothModelId, isDefault])
+}
+
+/// Panel checklist row scoped to one recipe version.
+model MrpRecipeVersionPanel {
+  id                     String                           @id @default(cuid())
+  recipeVersionId        String
+  changeType             MrpRecipeVersionPanelChangeType  @default(unchanged)
+  boothElementId         String?
+  sourcePanelId          String?
+  sheetHeader            String
+  simpleName             String
+  sortOrder              Int                              @default(0)
+  isActive               Boolean                          @default(true)
+  recipeCopiedFromSource Boolean                          @default(false)
+  createdAt              DateTime                         @default(now())
+
+  recipeVersion MrpRecipeVersion        @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+  boothElement  MrpBoothElement?        @relation(fields: [boothElementId], references: [id], onDelete: SetNull)
+  sourcePanel   MrpRecipeVersionPanel?  @relation("MrpRecipeVersionPanelSource", fields: [sourcePanelId], references: [id], onDelete: SetNull)
+  derivedPanels MrpRecipeVersionPanel[] @relation("MrpRecipeVersionPanelSource")
+
+  @@unique([recipeVersionId, sheetHeader])
+  @@unique([recipeVersionId, simpleName])
+  @@index([boothElementId])
+}
+
+/// Frozen electric assembly choice per kind for a recipe version.
+
+/// Frozen electric kit for one or more product recipe versions.
+model MrpElectricAssemblyVersion {
+  id              String                 @id @default(cuid())
+  assemblyId      String
+  label           String
+  status          MrpRecipeVersionStatus @default(ready)
+  /// Deep-frozen materials snapshot (same shape as MrpRecipeVersionElectric.moduleSnapshot).
+  moduleSnapshot  Json?
+  snapshotVersion Int                    @default(2)
+  reason          String?
+  introducedOn    DateTime?
+  lockedAt        DateTime?
+  sourceVersionId String?
+  createdById     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  assembly            MrpElectricAssembly          @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  sourceVersion       MrpElectricAssemblyVersion?  @relation("MrpElectricAssemblyVersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
+  derivedVersions     MrpElectricAssemblyVersion[] @relation("MrpElectricAssemblyVersionSource")
+  createdBy           User?                        @relation("MrpElectricAssemblyVersionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  productElectricRefs MrpRecipeVersionElectric[]
+
+  @@unique([assemblyId, label])
+  @@index([assemblyId, status])
+  @@index([introducedOn])
+}
+
+model MrpRecipeVersionElectric {
+  id               String                               @id @default(cuid())
+  recipeVersionId  String
+  kind             String
+  parityMode       MrpRecipeVersionElectricParityMode
+  sourceAssemblyId String?
+  /// Linked frozen electric-assembly version (N product versions → 1 electric version).
+  assemblyVersionId String?
+  /// JSON: [{ moduleCode, quantity }] frozen at publish (copy of linked electric version).
+  moduleSnapshot   Json?
+  /// 1 = module codes only; 2 = deep-frozen materials.
+  snapshotVersion  Int                                  @default(1)
+  note             String?
+  createdAt        DateTime                             @default(now())
+
+  recipeVersion   MrpRecipeVersion            @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+  sourceAssembly  MrpElectricAssembly?        @relation(fields: [sourceAssemblyId], references: [id], onDelete: SetNull)
+  assemblyVersion MrpElectricAssemblyVersion? @relation(fields: [assemblyVersionId], references: [id], onDelete: SetNull)
+
+  @@unique([recipeVersionId, kind])
+  @@index([assemblyVersionId])
+}
+
+/// Explicit batch → version assignment (coverage rules).
+model MrpRecipeVersionBatchLink {
+  id                   String   @id @default(cuid())
+  recipeVersionId      String
+  manufacturingBatchId String?
+  batchLabel           String?
+  createdAt            DateTime @default(now())
+
+  recipeVersion      MrpRecipeVersion       @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+  manufacturingBatch MrpManufacturingBatch? @relation(fields: [manufacturingBatchId], references: [id], onDelete: SetNull)
+
+  @@index([recipeVersionId])
+  @@index([manufacturingBatchId])
+  @@index([batchLabel])
 }
 
 /// Row from master sheet Статус на партиди (synced from Google Sheets).
@@ -2392,6 +2616,8 @@ model MrpManufacturingBatch {
   warehouseId        String?
   masterSheetRowKey  String                      @unique
   batchSpreadsheetId String?
+  recipeVersionId      String?
+  sheetRecipeVersion   String?
   /// Business DealID — aligns with Deal.dealId / BoothUnit.dealId for
   /// future sales → factory linkage.
   dealId             String?
@@ -2399,10 +2625,12 @@ model MrpManufacturingBatch {
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
 
-  boothModel     MrpBoothModel?                 @relation(fields: [boothModelId], references: [id], onDelete: SetNull)
-  warehouse      MrpWarehouse?                  @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
-  units          MrpBatchUnit[]
-  exceptionLinks MrpRecipeExceptionBatchLink[]
+  boothModel        MrpBoothModel?                 @relation(fields: [boothModelId], references: [id], onDelete: SetNull)
+  warehouse         MrpWarehouse?                  @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  recipeVersion     MrpRecipeVersion?              @relation(fields: [recipeVersionId], references: [id], onDelete: SetNull)
+  units             MrpBatchUnit[]
+  exceptionLinks    MrpRecipeExceptionBatchLink[]
+  versionBatchLinks MrpRecipeVersionBatchLink[]
 
   @@index([status])
   @@index([name])
@@ -2648,6 +2876,11 @@ enum FactoryPlanningBoothStatus {
   ready
 }
 
+enum FactoryPlanningMonthReadiness {
+  draft
+  final
+}
+
 /// Station grouping (roles table in the old Factory Supabase schema).
 model FactoryStationRole {
   id        String   @id @default(cuid())
@@ -2685,6 +2918,8 @@ model FactoryBoothModel {
   code      String   @unique
   nameBg    String
   notes     String?
+  /// Planning credit weight (SO=1, C2=2, H2=2.3, …). Nullable until seeded.
+  credits   Decimal? @db.Decimal(6, 2)
   createdAt DateTime @default(now())
 
   bomRequirements   FactoryStationElementRequirement[]
@@ -2984,6 +3219,7 @@ model FactorySite {
 
   planningBatches FactoryPlanningBatch[]
   importRuns      FactoryPlanningImportRun[]
+  planningMonths  FactoryPlanningMonth[]
 }
 
 model FactoryBoothVersionCode {
@@ -3083,6 +3319,28 @@ model FactoryPlanningImportRun {
   finishedAt      DateTime?
 
   site FactorySite @relation(fields: [siteId], references: [id])
+}
+
+/// One production month per factory site (final or draft «Not Ready» from Sheets).
+model FactoryPlanningMonth {
+  id             String                        @id @default(cuid())
+  siteId         String
+  year           Int
+  month          Int
+  readiness      FactoryPlanningMonthReadiness @default(final)
+  sheetTab       String?
+  importedAt     DateTime?
+  /// Month tab Target cell (N1) — pace for daily panel quotas.
+  creditTarget   Decimal?                      @db.Decimal(10, 2)
+  /// Factory capacity context (AKS default 160).
+  creditCapacity Decimal?                      @db.Decimal(10, 2)
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+
+  site FactorySite @relation(fields: [siteId], references: [id])
+
+  @@unique([siteId, year, month])
+  @@index([year, month])
 }
 
 // ---- RP spare parts / panels (owner: rp) ----
@@ -3563,6 +3821,22 @@ model ClockDevice {
   @@map("clock_devices")
 }
 
+/// Append-only health transitions from kiosk heartbeats (not every 5‑min ping).
+model ClockDeviceEvent {
+  id              String   @id @default(cuid())
+  stationId       String   @map("station_id")
+  at              DateTime @default(now())
+  rfidOk          Boolean  @map("rfid_ok")
+  lastEvent       String?  @map("last_event")
+  lastError       String?  @map("last_error")
+  uptimeSec       Int?     @map("uptime_sec")
+  wifiRssi        Int?     @map("wifi_rssi")
+  firmwareVersion String?  @map("firmware_version")
+
+  @@index([stationId, at])
+  @@map("clock_device_events")
+}
+
 /// Calendar days ignored by hours / reports (test data, etc.). Events are kept.
 model ClockExcludedDay {
   id        String   @id @default(cuid())
@@ -3822,4 +4096,63 @@ model FeatureRequestVote {
 
   @@unique([requestId, userId])
   @@index([userId])
+}
+
+// ---- Partner stock (owner: stock, stock.meavo.app) ----
+
+enum StockPartnerLocation {
+  UK
+  FR
+  DE
+  ES
+  US_EAST
+  US_WEST
+  OTHER_EU
+  US_NY
+  US_CHI
+  US_BOS
+  US_HOU
+  US_SF
+  US_LA
+}
+
+/// Partner portal credentials + region recipe for stock.meavo.app.
+/// Inventory quantities stay in the Ops Google Sheet; Neon stores portals only.
+model StockPartner {
+  id           String               @id @default(cuid())
+  name         String
+  slug         String               @unique
+  username     String               @unique
+  passwordHash String
+  location     StockPartnerLocation
+  note         String?
+  isActive     Boolean              @default(true)
+  createdById  String
+  lastLoginAt  DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  createdBy User   @relation("StockPartnerCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  visits    StockPartnerVisit[]
+
+  @@index([isActive])
+  @@index([location])
+  @@index([createdById])
+}
+
+enum StockPartnerVisitKind {
+  LOGIN
+  PAGE_VIEW
+}
+
+/// Partner login / stock-page view events for staff usage stats (stock.meavo.app).
+model StockPartnerVisit {
+  id         String                @id @default(cuid())
+  partnerId  String
+  kind       StockPartnerVisitKind
+  occurredAt DateTime              @default(now())
+
+  partner StockPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, occurredAt])
 }
