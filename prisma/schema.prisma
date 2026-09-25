@@ -1762,7 +1762,16 @@ model SalesRepIdentity {
   @@index([userId])
 }
 
-/// One analysis run per UTC date, with an explicit input cutoff and Sofia morning deadline.
+/// Super Admin-only AI settings. SQL constrains id to the single "default" record.
+model SalesPrioritySettings {
+  id           String   @id @default("default")
+  modelProfile String   @default("gpt-6-sol")
+  /// Historical editor attribution; deliberately no User foreign key.
+  updatedById  String?
+  updatedAt    DateTime @updatedAt
+}
+
+/// One analysis run per analysis date, with an explicit input cutoff and Sofia morning deadline.
 model SalesPriorityRun {
   id            String    @id @default(cuid())
   runDate       DateTime  @unique @db.Date
@@ -1770,6 +1779,8 @@ model SalesPriorityRun {
   cutoffAt      DateTime
   deadlineAt    DateTime
   model         String
+  /// Frozen model/reasoning/pricing profile; null denotes a legacy run.
+  modelConfig   Json?
   promptVersion String
   createdAt     DateTime  @default(now())
   completedAt   DateTime?
