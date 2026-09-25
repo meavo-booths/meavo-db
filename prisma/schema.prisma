@@ -33,6 +33,12 @@ enum ToolCardKind {
   APP_ACCESS
 }
 
+/// Tool-scoped role; only Sales currently exposes ADMIN. Never grants company-wide access.
+enum ToolAccessRole {
+  MEMBER
+  ADMIN
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String?
@@ -93,8 +99,6 @@ model User {
   clientEventsUpdated        ClientEvent[]        @relation("ClientEventEditor")
   clientEventReceiptsUploaded ClientEventReceipt[] @relation("ClientEventReceiptUploader")
   salesRepIdentities          SalesRepIdentity[]
-  salesPriorityRecommendations SalesPriorityRecommendation[]
-  salesPriorityFeedback      SalesPriorityFeedback[]
 
   featureRequestsAuthored FeatureRequest[]     @relation("FeatureRequestAuthor")
   featureRequestVotes     FeatureRequestVote[]
@@ -164,6 +168,7 @@ model ToolCardAccess {
   id        String   @id @default(cuid())
   userId    String
   cardId    String
+  role      ToolAccessRole @default(MEMBER)
   createdAt DateTime @default(now())
 
   user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1841,7 +1846,9 @@ model SalesCompanyResearch {
 model SalesPriorityRecommendation {
   id          String   @id @default(cuid())
   runId       String
+  /// Historical recipient identity, independent of the live account.
   userId      String
+  userName    String?
   familyId    String
   dealId      String
   rank        Int
@@ -1849,7 +1856,6 @@ model SalesPriorityRecommendation {
   generatedAt DateTime @default(now())
 
   run      SalesPriorityRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
-  user     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   feedback SalesPriorityFeedback[]
 
   @@unique([runId, userId, familyId])
@@ -1860,13 +1866,14 @@ model SalesPriorityRecommendation {
 model SalesPriorityFeedback {
   id               String   @id @default(cuid())
   recommendationId String
+  /// Historical feedback actor identity, independent of the live account.
   userId           String
+  userName         String?
   /// HELPFUL, DISMISSED, or ACTED; validated by Sales.
   kind             String
   createdAt        DateTime @default(now())
 
   recommendation SalesPriorityRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
-  user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([recommendationId, userId, kind])
   @@index([userId])

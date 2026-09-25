@@ -4,6 +4,8 @@
 -- Additive and transactional; safe to rerun after a successful application.
 -- Verify an isolated non-production target before testing. Production application
 -- requires the exact SQL/revision approval described in RELEASE_POLICY.md.
+-- Recipient IDs in recommendation/feedback history deliberately have no User
+-- foreign key. Follow with sales-admin-priorities.sql for tool roles and names.
 
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -154,20 +156,8 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 DO $$ BEGIN
-  ALTER TABLE "SalesPriorityRecommendation" ADD CONSTRAINT "SalesPriorityRecommendation_userId_fkey"
-    FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
   ALTER TABLE "SalesPriorityFeedback" ADD CONSTRAINT "SalesPriorityFeedback_recommendationId_fkey"
     FOREIGN KEY ("recommendationId") REFERENCES "SalesPriorityRecommendation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  ALTER TABLE "SalesPriorityFeedback" ADD CONSTRAINT "SalesPriorityFeedback_userId_fkey"
-    FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 

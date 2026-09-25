@@ -37,6 +37,25 @@ User ──< TeamMember >── Team
 ```
 
 All satellite domains foreign-key to the shared `User` / `Team` — never duplicate identity tables.
+Historical Sales priority recipient/actor IDs are the deliberate exception:
+their dated records survive account deletion and do not represent live access.
+
+### Tool-scoped access roles
+
+`ToolCardAccess.role` uses `ToolAccessRole` (`MEMBER`, `ADMIN`) and defaults to
+`MEMBER`. Adding the column does not promote anyone, including existing
+company-wide admins. Gateway exposes and edits this role for Sales only, from
+both user access and tool access management. Other tools retain their existing
+membership behavior. Removing membership removes its role; regranting without an
+explicit role creates a `MEMBER`. Gateway must preserve roles on retained rows
+when editing unrelated access.
+
+`User.systemRole = ADMIN` remains the existing company-wide **Super Admin**.
+A Sales tool `ADMIN` is not a Super Admin: Sales grants only won-deal line editing
+and team generated-priority history review. AI configuration, usage/costs and
+permission management remain Super Admin-only. The apps enforce capabilities
+server-side and require current Sales membership even for Super Admins; this
+enum alone does not authorize a request.
 
 ## Naming & style
 
@@ -134,11 +153,22 @@ recommendation/recipient/kind; Sales enforces that the authenticated recipient
 owns the recommendation. Kinds and statuses remain strings so future app changes
 can introduce values without changing a shared Postgres enum.
 
+Recommendations and feedback retain `userId` as a scalar historical identity,
+with a nullable frozen `userName`. They have no User foreign key. New Sales
+writes save the display name independently of live account relationships,
+including `userName` in REP work-item input so empty/failed result groups retain
+their recipient label. Existing records are backfilled from the current account
+name/email, then saved matching opportunity/work inputs where available. A name
+that cannot be recovered remains unknown; history already removed by an earlier
+cascade cannot be reconstructed by this migration.
+
 Deleting a run cascades to its work, feature snapshots, recommendations, and
-their feedback. Deleting a User cascades to identity mappings, recommendations,
-and feedback; historical opportunity snapshots and work-item attribution remain.
-Retention cleanup is an explicit Sales action, not a side effect of a source
-deal changing or being deleted.
+their feedback. Deleting a User still cascades to live identity mappings and
+tool access, but preserves priority recommendations, feedback, opportunity
+snapshots and work-item attribution. There is no automatic deletion policy.
+History shows the original generated ranks/content/feedback, independently of
+dismissal, ownership/value changes or deal deletion; it does not prove the rep
+viewed a suggestion. Live status belongs in a separate current-state display.
 
 Apply `scripts/sales-daily-priorities.sql` only after reviewing the additive schema
 diff and verifying the database target. It creates eight tables, their indexes,
@@ -149,6 +179,24 @@ check rerun safety. Rollback is to disable the new worker/UI and leave these
 additive tables in place; do not drop history as part of an application rollback.
 Schema application, a consumed package release, and consumer rollout each follow
 the release-policy approval steps above.
+
+Apply `scripts/sales-admin-priorities.sql` after the daily-priorities script and
+before Gateway/Sales role and history releases. It adds the tool role and nullable
+names, removes only the two destructive User-to-history foreign keys, and
+backfills missing names without overwriting frozen labels on reruns. The earlier
+daily-priorities script no longer recreates those foreign keys. Verify the schema
+diff (one enum, three columns, two foreign-key removals), apply twice on an
+isolated database, and test account deletion before staging application. Existing
+row IDs, indexes, uniqueness rules and run/recommendation relationships remain.
+
+Older consumers can omit the new fields: memberships default to `MEMBER` and
+names remain nullable. Consumers may use parameterized SQL with their existing
+approved package pins until a separately approved canonical package release;
+do not publish a production tag merely to test staging. Rollback means reverting
+app behavior while retaining schema/history. An older Gateway's delete/recreate
+access save may reset retained roles to `MEMBER`; avoid those saves until the
+role-preserving version is restored. Never restore cascading history foreign
+keys or delete historical rows as an application rollback.
 
 ## Sync / external copies
 
