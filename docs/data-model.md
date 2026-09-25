@@ -15,7 +15,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner`, `Questionnaire*`, `QuestionnaireSubmission`, `Resource*`, `SheetImportState` |
 | Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `Deal`, `DealLabel`, `DealLabelAssignment`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
-| Sales daily priorities | sales | `SalesRepIdentity`, `SalesPriorityRun`, `SalesPriorityWorkItem`, `SalesOpportunitySnapshot`, `SalesCrmSnapshot`, `SalesCompanyResearch`, `SalesPriorityRecommendation`, `SalesPriorityFeedback` |
+| Sales daily priorities | sales | `SalesRepIdentity`, `SalesPrioritySettings`, `SalesPriorityRun`, `SalesPriorityWorkItem`, `SalesOpportunitySnapshot`, `SalesCrmSnapshot`, `SalesCompanyResearch`, `SalesPriorityRecommendation`, `SalesPriorityFeedback` |
 | Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroIntegrationSettings` |
 | Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting` |
 | Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpElementBomLine`, ... |
@@ -121,9 +121,23 @@ tagged release and consumer-bump process above.
 owner ID to the existing shared `User`. Mappings default to active and can be
 disabled; recommendation ownership must not be inferred from the quote creator.
 
+`SalesPrioritySettings` holds the singleton AI model selection (`id = default`).
+The app treats an absent row as the default `gpt-6-sol` profile and creates the
+row on its first settings save. `modelProfile` is a validated app catalog key,
+not a database enum; the app owns supported model/reasoning/pricing profiles.
+`updatedById` retains historical editor attribution without a live User foreign
+key. Settings reads and writes require Sales access and the existing company-wide
+Super Admin role; the tool-scoped Sales Admin role does not grant AI administration.
+
 `SalesPriorityRun` stores one unique business `runDate`, the input `cutoffAt`,
 publication `deadlineAt`, model and prompt version, lifecycle status, and
 completion time. The Sales app owns the business timezone and status transitions.
+Nullable `modelConfig` freezes the selected model, reasoning and pricing profile
+when a run starts. Its contents belong to that run; later settings edits must not
+change an in-progress or completed run. The worker resumes using that saved
+configuration. Legacy rows remain null and retain the old model/low-reasoning
+interpretation; the migration does not rewrite their history. The app enforces
+snapshot immutability and the overnight scheduling policy.
 `SalesPriorityWorkItem` is a durable queue with a unique `(runId, kind, key)`,
 attempt count, retry availability, and a lease token/expiry. `input` and `result`
 are versioned JSON payloads; the result may include token usage and cost. Queue
@@ -197,6 +211,17 @@ app behavior while retaining schema/history. An older Gateway's delete/recreate
 access save may reset retained roles to `MEMBER`; avoid those saves until the
 role-preserving version is restored. Never restore cascading history foreign
 keys or delete historical rows as an application rollback.
+
+Apply `scripts/sales-priority-settings.sql` before the Sales model-selector
+release. It creates the settings table and adds only a nullable `modelConfig`
+column to existing runs. The SQL-only `SalesPrioritySettings_singleton_check`
+must be applied even if Prisma already created the table. Existing insert paths
+remain compatible, and applying the script again preserves the selected profile
+and all saved run configurations. Settings SQL writers must supply `updatedAt`;
+Prisma manages that timestamp via `@updatedAt`. Roll back app behavior without
+dropping the settings table or run history. Staging verification does not require
+publishing a package tag, and production migration/tag/app releases each follow
+the release-policy approval steps above.
 
 ## Sync / external copies
 
