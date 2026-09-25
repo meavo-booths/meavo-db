@@ -1,0 +1,5 @@
+<!-- BEGIN MEAVO RELEASE POLICY -->
+## MEAVO release safety
+
+Read [AGENTS.md](AGENTS.md) and [RELEASE_POLICY.md](RELEASE_POLICY.md) before release or deployment work. Work normally on feature branches and through PRs into `staging`. After integrating and verifying staging, present the release PR, current head SHA, changes and checks; stop and ask for one human approval before main. The PR author may approve in the conversation or a human-authored PR comment, including a clear “yes” to the specific request. No second person or formal approving review is required. Never push directly to `main`/`staging` or bypass protections. Production actions, including merging/auto-merging/queueing a PR into `main`, need explicit human permission for this repository, the exact action, and the current reviewed PR/head SHA or artifact/configuration scope. Changed head or scope invalidates approval; never infer or manufacture it. Reuse valid approval for an unchanged retry. Never run feature → staging → main without the human checkpoint.
+<!-- END MEAVO RELEASE POLICY -->

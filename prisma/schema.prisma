@@ -33,6 +33,12 @@ enum ToolCardKind {
   APP_ACCESS
 }
 
+/// Tool-scoped role; only Sales currently exposes ADMIN. Never grants company-wide access.
+enum ToolAccessRole {
+  MEMBER
+  ADMIN
+}
+
 model User {
   id            String     @id @default(cuid())
   name          String?
@@ -90,6 +96,11 @@ model User {
   signatureRequestsAsCompanySigner SignatureRequest[]      @relation("SignatureRequestCompanySigner")
 
   clockWorker                ClockWorker?
+  dealSubscriptions          DealSubscription[]
+  clientEventsCreated        ClientEvent[]        @relation("ClientEventCreator")
+  clientEventsUpdated        ClientEvent[]        @relation("ClientEventEditor")
+  clientEventReceiptsUploaded ClientEventReceipt[] @relation("ClientEventReceiptUploader")
+  salesRepIdentities          SalesRepIdentity[]
 
   featureRequestsAuthored FeatureRequest[]     @relation("FeatureRequestAuthor")
   featureRequestVotes     FeatureRequestVote[]
@@ -161,6 +172,7 @@ model ToolCardAccess {
   id        String   @id @default(cuid())
   userId    String
   cardId    String
+  role      ToolAccessRole @default(MEMBER)
   createdAt DateTime @default(now())
 
   user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -700,6 +712,8 @@ model Question {
   sortOrder               Int
   required                Boolean      @default(true)
   endsQuestionnaireOnNo   Boolean      @default(false)
+  /// Follow-up text under a Yes/No fork: false = show if Yes (default), true = show if No.
+  followUpOnNo            Boolean      @default(false)
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 
@@ -1094,6 +1108,7 @@ model Client {
   clientType        DealClientType @default(DIRECT)
   market            String         @default("")
   website           String         @default("")
+  notes             String         @default("") @db.Text
   isVip             Boolean        @default(false)
   /// Showroom partner label — orthogonal to clientType (like isVip).
   isShowroom        Boolean        @default(false)
@@ -1112,6 +1127,8 @@ model Client {
 
   contacts ClientContact[]
   deals    Deal[]
+  labels   ClientLabelAssignment[]
+  events   ClientEvent[]
 
   @@index([name])
   @@index([parentClientId])
@@ -1132,6 +1149,96 @@ model ClientContact {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
+}
+
+/// Reusable Sales label catalogue. The application trims names and stores
+/// lower-case normalizedName; SQL also enforces the normalization invariant.
+model ClientLabel {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  clients ClientLabelAssignment[]
+}
+
+model ClientLabelAssignment {
+  clientId  String
+  labelId   String
+  createdAt DateTime @default(now())
+
+  client Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label  ClientLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, labelId])
+  @@index([labelId])
+}
+
+enum ClientEventType {
+  DINNER
+  DRINKS
+  MEETING
+  CALL
+  OTHER
+}
+
+enum ClientEventReceiptStatus {
+  PENDING
+  READY
+  DELETE_PENDING
+}
+
+/// Manually recorded client activity. Expenses and activity belong only to this
+/// client, without rolling up to parent companies or their other subsidiaries.
+model ClientEvent {
+  id              String          @id @default(cuid())
+  clientId        String
+  title           String
+  eventDate       DateTime        @db.Date
+  type            ClientEventType @default(OTHER)
+  description     String          @default("") @db.Text
+  expenseAmount   Decimal?        @db.Decimal(12, 2)
+  expenseCurrency String?
+  createdByUserId String?
+  createdByName   String
+  updatedByUserId String?
+  updatedByName   String?
+  editedAt        DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  /// Keep the row until every receipt has been removed from private storage.
+  deletedAt       DateTime?
+
+  client    Client               @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  createdBy User?                @relation("ClientEventCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy User?                @relation("ClientEventEditor", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  receipts  ClientEventReceipt[]
+
+  @@index([clientId, deletedAt, eventDate, id])
+}
+
+/// Reserve storageKey before issuing an upload token, then mark READY only
+/// after validating the uploaded object. DELETE_PENDING survives cleanup errors.
+model ClientEventReceipt {
+  id               String                   @id @default(cuid())
+  eventId          String
+  storageKey       String                   @unique
+  fileName         String
+  mimeType         String
+  size             Int
+  uploadedByUserId String?
+  uploadExpiresAt  DateTime
+  status           ClientEventReceiptStatus @default(PENDING)
+  cleanupError     String?                  @db.Text
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  event      ClientEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  uploadedBy User?       @relation("ClientEventReceiptUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, status])
+  @@index([status, createdAt])
 }
 
 model Deal {
@@ -1241,6 +1348,10 @@ model Deal {
   /// Set when payment status was first synced from Xero; locks manual payment edits.
   xeroPaymentSyncedAt DateTime?
 
+  /// Cash collected so far, in the invoice currency, excl. VAT. Set by the Xero
+  /// payment sync and manual payment edits (owner: sales). Null until first set.
+  amountCollected Decimal? @db.Decimal(12, 2)
+
   // US sales tax (Zamp) — computed on quote save for US market; committed on win.
   usTaxAmount       Decimal        @default(0) @db.Decimal(12, 2)
   usTaxDetail       Json?
@@ -1281,6 +1392,8 @@ model Deal {
   assemblies       Assembly[]
   auditLogs        DealAuditLog[]
   attachments      DealAttachment[]
+  subscriptions    DealSubscription[]
+  labels           DealLabelAssignment[]
 
   @@index([stage])
   @@index([dealDate])
@@ -1330,6 +1443,47 @@ model DealAttachment {
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([dealId])
+}
+
+/// Reusable deal label (sales app). `normalizedName` is the trimmed lower-case
+/// name, so labels are unique regardless of case.
+model DealLabel {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  deals DealLabelAssignment[]
+}
+
+model DealLabelAssignment {
+  dealId    String
+  labelId   String
+  createdAt DateTime @default(now())
+
+  deal  Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  label DealLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([dealId, labelId])
+  @@index([labelId])
+}
+
+/// Who receives deal update notifications (sales app). The deal's sales rep is
+/// subscribed implicitly (resolved from Deal.salesRep at send time); a row with
+/// muted = true opts the rep out, any other row opts a colleague in.
+model DealSubscription {
+  id        String   @id @default(cuid())
+  dealId    String
+  userId    String
+  muted     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dealId, userId])
+  @@index([userId])
 }
 
 model DealContact {
@@ -1408,6 +1562,42 @@ model BoothUnit {
   @@index([dealId])
   @@index([status])
   @@index([productId])
+}
+
+/// Brand preset for quote PDFs (logo + accent live in the sales app).
+enum QuotePdfBrand {
+  MEAVO
+  OFFICE_ACOUSTICS
+  OFB
+}
+
+/// Notes bullets + footer copy for one brand × language. Chrome (table labels)
+/// stays in the sales app; this row is what the Settings template builder edits.
+model QuotePdfTemplate {
+  id           String        @id @default(cuid())
+  brand        QuotePdfBrand
+  /// QuotePdfLang code from the sales app (en, en-US, es, it, de, fr, cs, pt).
+  lang         String
+  termsBullets Json
+  footerLines  Json
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  marketDefaults QuotePdfMarketDefault[]
+
+  @@unique([brand, lang])
+}
+
+/// One default quote-PDF template per Sales market. Reassigning a market
+/// replaces the previous default; a market must always have a default.
+model QuotePdfMarketDefault {
+  market     String           @id
+  templateId String
+  updatedAt  DateTime         @updatedAt
+
+  template QuotePdfTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@index([templateId])
 }
 
 // ---- Xero integration (owner: sales) ----
@@ -1510,6 +1700,198 @@ model HubSpotLostReason {
   updatedAt    DateTime @updatedAt
 
   @@index([archived, displayOrder])
+}
+
+/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).
+/// One row per HubSpot deal, keyed by HubSpot's deal id, refreshed by the sales
+/// HubSpot cron for every Deal row that links to it. Deliberately not a Prisma
+/// relation: linking a quote must never depend on a snapshot existing.
+model HubSpotDealSnapshot {
+  /// HubSpot deal id — matches Deal.hubspotDealId.
+  id               String    @id
+  dealName         String
+  stageId          String?
+  stageLabel       String?
+  /// When the deal entered its current stage (hs_v2_date_entered_<stage>).
+  stageEnteredAt   DateTime?
+  closeDate        DateTime?
+  hubspotCreatedAt DateTime?
+  ownerId          String?
+  /// Resolved from the owners API; null when the token lacks the owners scope.
+  ownerName        String?
+  /// hs_analytics_source / hs_analytics_latest_source.
+  source           String?
+  latestSource     String?
+  /// Custom "Source Channel" deal property (sub-category of source), stored as its option label.
+  sourceChannel    String?
+  /// notes_last_updated — any activity, including notes and completed tasks.
+  lastActivityAt   DateTime?
+  /// hs_last_sales_activity_type, e.g. CALL, EMAIL, MEETING.
+  lastActivityType String?
+  /// notes_last_contacted — calls, one-to-one emails, meetings, messages.
+  lastContactedAt  DateTime?
+  /// hs_sales_email_last_replied.
+  lastReplyAt      DateTime?
+  /// hs_latest_meeting_activity (past or upcoming).
+  lastMeetingAt    DateTime?
+  /// notes_next_activity_date.
+  nextActivityAt   DateTime?
+  nextStep         String?
+  /// num_contacted_notes — times contacted (no notes or tasks).
+  contactedCount   Int?
+  /// num_notes — all sales activities.
+  activityCount    Int?
+  /// Stage label -> cumulative seconds spent (hs_v2_cumulative_time_in_<stage>).
+  stageDurations   Json?
+  syncedAt         DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([lastContactedAt])
+  @@index([nextActivityAt])
+}
+
+/// Verified Sales rep-to-account mapping; ownership never depends on who created a quote.
+model SalesRepIdentity {
+  id             String   @id @default(cuid())
+  canonicalName  String   @unique
+  userId         String
+  hubspotOwnerId String?  @unique
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Super Admin-only AI settings. SQL constrains id to the single "default" record.
+model SalesPrioritySettings {
+  id           String   @id @default("default")
+  modelProfile String   @default("gpt-6-sol")
+  /// Historical editor attribution; deliberately no User foreign key.
+  updatedById  String?
+  updatedAt    DateTime @updatedAt
+}
+
+/// One analysis run per analysis date, with an explicit input cutoff and Sofia morning deadline.
+model SalesPriorityRun {
+  id            String    @id @default(cuid())
+  runDate       DateTime  @unique @db.Date
+  status        String    @default("PENDING")
+  cutoffAt      DateTime
+  deadlineAt    DateTime
+  model         String
+  /// Frozen model/reasoning/pricing profile; null denotes a legacy run.
+  modelConfig   Json?
+  promptVersion String
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  workItems       SalesPriorityWorkItem[]
+  snapshots       SalesOpportunitySnapshot[]
+  recommendations SalesPriorityRecommendation[]
+}
+
+/// Durable leased work queue. The app validates kind/status and stores usage/cost in result.
+model SalesPriorityWorkItem {
+  id             String    @id @default(cuid())
+  runId          String
+  kind           String
+  key            String
+  /// Historical recipient attribution; deliberately no User foreign key.
+  userId         String?
+  familyId       String?
+  status         String    @default("PENDING")
+  attempts       Int       @default(0)
+  availableAt    DateTime  @default(now())
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  input          Json
+  result         Json?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  finishedAt     DateTime?
+
+  run SalesPriorityRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, kind, key])
+  @@index([status, availableAt])
+}
+
+/// Dated input features, finalized with the accepted assessment, one per quote family per run. Native IDs are
+/// scalar historical references, so deleting a source deal or user preserves evidence.
+model SalesOpportunitySnapshot {
+  id         String   @id @default(cuid())
+  runId      String
+  familyId   String
+  dealId     String
+  userId     String?
+  capturedAt DateTime
+  data       Json
+
+  run SalesPriorityRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, familyId])
+}
+
+/// Latest enriched CRM payload. Historical model inputs live in opportunity snapshots.
+model SalesCrmSnapshot {
+  hubspotDealId String   @id
+  payload       Json
+  status        String
+  fetchedAt     DateTime
+  updatedAt     DateTime @updatedAt
+}
+
+/// Company-level public research cache; facts include their source and retrieval evidence.
+model SalesCompanyResearch {
+  domain      String   @id
+  companyName String
+  facts       Json
+  status      String
+  fetchedAt   DateTime
+  expiresAt   DateTime
+  updatedAt   DateTime @updatedAt
+}
+
+/// A rep's ranked daily opportunity suggestion with grounded, versioned JSON content.
+model SalesPriorityRecommendation {
+  id          String   @id @default(cuid())
+  runId       String
+  /// Historical recipient identity, independent of the live account.
+  userId      String
+  userName    String?
+  familyId    String
+  dealId      String
+  rank        Int
+  content     Json
+  generatedAt DateTime @default(now())
+
+  run      SalesPriorityRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  feedback SalesPriorityFeedback[]
+
+  @@unique([runId, userId, familyId])
+  @@index([userId, generatedAt])
+}
+
+/// Rep feedback is idempotent per recommendation, actor, and kind.
+model SalesPriorityFeedback {
+  id               String   @id @default(cuid())
+  recommendationId String
+  /// Historical feedback actor identity, independent of the live account.
+  userId           String
+  userName         String?
+  /// HELPFUL, DISMISSED, or ACTED; validated by Sales.
+  kind             String
+  createdAt        DateTime @default(now())
+
+  recommendation SalesPriorityRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@unique([recommendationId, userId, kind])
+  @@index([userId])
 }
 
 // ---- Notifications (owner: gateway) ----

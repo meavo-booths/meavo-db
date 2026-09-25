@@ -18,15 +18,12 @@ partial schema would drop the other apps' tables and columns.
 
 ## Making a schema change
 
-1. Edit `prisma/schema.prisma` here.
-2. Validate: `npm run validate` (needs `DATABASE_URL` in `.env`).
-3. Preview the SQL against the live DB:
-   `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`
-4. Apply with `npm run db:push` (or targeted SQL via `prisma db execute` for
-   anything destructive).
-5. Commit, tag a new version (`git tag v0.x.y && git push --tags`).
-6. Bump the `@meavo/db` dependency ref in each app that needs the new models
-   and redeploy.
+1. Edit `prisma/schema.prisma` on a `feat/*` branch.
+2. Validate: `npm run validate` (needs `DATABASE_URL` in `.env`). Confirm it targets an isolated non-production database.
+3. Review the SQL with `npm run diff`; test additive changes there with `npm run db:push`, or reviewed idempotent SQL through `prisma db execute` for ordering-sensitive/destructive changes.
+4. Open a PR against `staging` with the SQL, consumer compatibility checks, and rollback notes.
+5. Follow [RELEASE_POLICY.md](RELEASE_POLICY.md): obtain specific human approval before production database writes, promotion to `main`, or publishing a release tag/package.
+6. Prepare each affected app’s dependency bump as a feature PR against `staging`; production rollout requires its own approval.
 
 ## How apps consume it
 
@@ -54,7 +51,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | HR & documents | gateway | CompanyProfile, Employee, EmployeeSalaryHistory, EmployeeDocument, DocumentTemplate*, GeneratedDocument, LibraryAsset, GatewaySheetRecord |
 | Vacation | hols | VacationRequest, UserAllowance, PublicHoliday |
 | Assembly | assembly | Assembly, AssemblyPartner, Questionnaire*, Question*, Submission*, Resource*, SheetImportState |
-| Sales | sales | Product, ProductFamilyInfo, Client*, Deal*, QuoteLineItem, BoothUnit, HubSpotLostReason |
+| Sales | sales | Product, ProductFamilyInfo, Client* (incl. ClientLabel, ClientLabelAssignment, ClientEvent, ClientEventReceipt), Deal* (incl. DealSubscription, DealLabel, DealLabelAssignment), QuoteLineItem, BoothUnit, HubSpotLostReason, HubSpotDealSnapshot, QuotePdfTemplate, QuotePdfMarketDefault, SalesRepIdentity, SalesPrioritySettings, SalesPriorityRun, SalesPriorityWorkItem, SalesOpportunitySnapshot, SalesCrmSnapshot, SalesCompanyResearch, SalesPriorityRecommendation, SalesPriorityFeedback |
 | Notifications | gateway | NotificationOutbox, NotificationDelivery, NotificationEventSetting |
 | Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpMaterialCategory, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine |
 | Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryProduction*, FactoryStationWorkItem, FactoryWorkSession, FactoryQuota, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite |

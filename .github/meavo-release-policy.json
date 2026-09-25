@@ -1,0 +1,14 @@
+{
+  "blocks": {
+    "AGENTS.md": "ae53df01a7f27b51f3b65da6b5ba8e78fb4811bdddb8ce2482e697df14c87c37",
+    "CLAUDE.md": "504fee4458c5182b4de63560938f0d5f9eb3b8742ad8d20883dc9bece94051ff",
+    "CONTRIBUTING.md": "0b13ae366c0ed244383be79fb6c9c9e848cc172a5eac6d177398dc6c35caf04e"
+  },
+  "files": {
+    ".cursor/rules/release-process.mdc": "07aeace11b38825d9be8592a6521bff5cea9a22f52f9fa2468cddee6fb5d4f4e",
+    ".github/workflows/release-policy.yml": "42afdb6f47af3007d1bcdaf76ab6e85f961105a1af109492ce443998f2610bea",
+    "RELEASE_POLICY.md": "42434dacb1568bc5f89817f859d4a99e4ca63343b881a61402699d8eb1d5935b",
+    "scripts/verify-release-policy.py": "b6b04c992f16d7b6f020cb8f183d17250e9848242ca5ee58010739e58d5839d8"
+  },
+  "version": 1
+}
