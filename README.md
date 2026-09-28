@@ -72,3 +72,7 @@ counts for tool-card stats) but should only **write** through the owner app.
 | [docs/data-model.md](docs/data-model.md) | Domains, ownership, migration safety |
 | [docs/architecture.md](docs/architecture.md) | Consumption model and release flow |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | PR and release process |
+
+### Sales manual historical forecasts
+
+Sales owns `SalesForecastManualRun`; it retains manual historical forecasts and per-run cost history alongside daily `SalesForecastRun` snapshots. Apply `scripts/sales-forecast-manual-runs.sql` before the consumer release.
