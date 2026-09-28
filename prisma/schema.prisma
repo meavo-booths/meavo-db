@@ -1936,6 +1936,41 @@ model SalesForecastRun {
   @@index([status, runDate])
 }
 
+/// Manual historical snapshots retain every run and its costs without replacing
+/// daily runs. Scalar requester identity survives account deletion.
+model SalesForecastManualRun {
+  id                 String    @id @default(cuid())
+  runDate            DateTime  @db.Date
+  deadlineAt         DateTime
+  requestedById      String?
+  requestedByName    String?
+  cutoffAt           DateTime
+  capturedAt         DateTime?
+  status             String    @default("PENDING")
+  attempts           Int       @default(0)
+  leaseToken         String?
+  leaseExpiresAt     DateTime?
+  model              String
+  modelConfig        Json
+  calculationVersion String
+  promptVersion      String
+  inputs             Json?
+  result             Json?
+  briefing           Json?
+  aiStatus           String    @default("PENDING")
+  aiAttempts         Int       @default(0)
+  inputTokens        Int       @default(0)
+  outputTokens       Int       @default(0)
+  estimatedUsd       Decimal   @default(0) @db.Decimal(12, 6)
+  usageIncomplete    Boolean   @default(false)
+  lastError          String?
+  createdAt          DateTime  @default(now())
+  completedAt        DateTime?
+
+  @@index([runDate, createdAt])
+  @@index([status, deadlineAt])
+}
+
 // ---- Notifications (owner: gateway) ----
 
 enum NotificationStatus {
