@@ -233,3 +233,13 @@ Several domains mirror rows to Google Sheets or queue side effects; the outbox/s
 ## Queries agents should reuse
 
 N/A — this repo contains no query code. Prisma client helpers, seeds, and repositories live in the consuming apps.
+
+## Sales month-end forecasts
+
+`SalesForecastSettings` is a singleton, Super Admin-only model selection and processing toggle independent from daily priorities. It defaults to paused and GPT-6 Sol.
+
+`SalesForecastRun` retains one daily dated revenue forecast, its input snapshot, selected model/pricing and calculation/prompt versions. Expiring leases and bounded attempts allow safe cron recovery. Numerical inputs/results publish before optional AI briefing; known usage is accumulated and interrupted billing is flagged as incomplete. The model selects validated fact IDs and cannot change revenue estimates.
+
+The run stores historical Deal and rep references inside JSON; no live User/Deal relationship can cascade-delete its history. Settings editor IDs are historical scalars, matching priority settings. No automatic retention deletion is introduced.
+
+Apply `scripts/sales-month-end-forecast.sql` before the Sales staging deployment. The script only adds the two tables, checks and indexes. Existing generated Prisma clients remain compatible; the first Sales consumer uses parameterized SQL. Production application requires approval of the reviewed SQL/revision. Rollback retains historical tables and disables processing. No tag is required for the backwards-compatible SQL consumer.
