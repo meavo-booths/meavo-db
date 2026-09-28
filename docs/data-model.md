@@ -243,3 +243,12 @@ N/A — this repo contains no query code. Prisma client helpers, seeds, and repo
 The run stores historical Deal and rep references inside JSON; no live User/Deal relationship can cascade-delete its history. Settings editor IDs are historical scalars, matching priority settings. No automatic retention deletion is introduced.
 
 Apply `scripts/sales-month-end-forecast.sql` before the Sales staging deployment. The script only adds the two tables, checks and indexes. Existing generated Prisma clients remain compatible; the first Sales consumer uses parameterized SQL. Production application requires approval of the reviewed SQL/revision. Rollback retains historical tables and disables processing. No tag is required for the backwards-compatible SQL consumer.
+
+
+## Opportunity forecast pilot (Sales)
+
+`scripts/sales-opportunity-forecast.sql` adds an independently paused opportunity-processing flag to `SalesForecastSettings`, retaining the existing model selector. `SalesOpportunityForecastRun` freezes the model/configuration, known quoted pipeline, baseline and observed outcomes. `SalesOpportunityForecastItem` provides fenced per-family leases, prepared evidence, qualitative assessments and token/cost accounting. No trained conversion probabilities are stored in this pilot.
+
+`SalesOpportunityQualification` stores the current rep-confirmed buyer facts; immutable `SalesOpportunityQualificationEvent` revisions preserve actor names/IDs and source notes. Historical deal/actor IDs have no live-user/deal foreign keys, so account deletion, reassignment and closure cannot erase prediction evidence. Run/item references use RESTRICT and there is no automatic retention deletion. Complete-opportunity collection starts 2026-08-15; imported historical wins are never treated as a conversion denominator.
+
+Migration is additive and compatible with the pinned Sales Prisma client through bound SQL. Validate and apply in isolated staging before the Sales staging release. Production SQL, main release and processing activation require specific human approval. Rollback pauses processing and retains all tables.

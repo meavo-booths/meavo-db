@@ -1897,6 +1897,7 @@ model SalesPriorityFeedback {
 /// Independent, Super Admin-only forecast configuration. No live user relationship:
 /// editor attribution and saved forecasts survive account deletion.
 model SalesForecastSettings {
+  opportunityProcessingEnabled Boolean @default(false)
   id                String   @id @default("default")
   modelProfile      String   @default("gpt-6-sol")
   processingEnabled Boolean  @default(false)
@@ -4196,4 +4197,71 @@ model StockPartnerVisit {
   partner StockPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([partnerId, occurredAt])
+}
+
+// Opportunity forecast (owner: sales). Historical scalar IDs deliberately have no live user/deal FK.
+model SalesOpportunityForecastRun {
+  id String @id
+  requestKey String @unique
+  runDate DateTime @db.Date
+  mode String
+  status String @default("PENDING")
+  cutoffAt DateTime
+  deadlineAt DateTime
+  model String
+  modelConfig Json
+  aiAllowed Boolean
+  version String
+  promptVersion String
+  inputs Json?
+  summary Json?
+  attempts Int @default(0)
+  leaseToken String?
+  leaseExpiresAt DateTime?
+  requestedById String?
+  requestedByName String?
+  lastError String?
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  items SalesOpportunityForecastItem[]
+  @@index([runDate(sort: Desc), createdAt(sort: Desc)], map: "SalesOpportunityForecastRun_date_idx")
+}
+model SalesOpportunityForecastItem {
+  id String @id
+  runId String
+  familyId String
+  dealId String
+  input Json
+  inputHash String?
+  assessment Json?
+  status String @default("PENDING")
+  attempts Int @default(0)
+  leaseToken String?
+  leaseExpiresAt DateTime?
+  availableAt DateTime
+  inputTokens Int @default(0)
+  outputTokens Int @default(0)
+  estimatedUsd Decimal @default(0) @db.Decimal(12,6)
+  usageIncomplete Boolean @default(false)
+  lastError String?
+  completedAt DateTime?
+  run SalesOpportunityForecastRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+  @@unique([runId, familyId])
+  @@index([runId, status, availableAt], map: "SalesOpportunityForecastItem_claim_idx")
+  @@index([inputHash, completedAt(sort: Desc)], map: "SalesOpportunityForecastItem_hash_idx")
+  @@index([familyId], map: "SalesOpportunityForecastItem_family_idx")
+}
+model SalesOpportunityQualification {
+  familyId String @id
+  data Json
+  updatedAt DateTime
+}
+model SalesOpportunityQualificationEvent {
+  id String @id
+  familyId String
+  data Json
+  actorId String
+  actorName String
+  createdAt DateTime
+  @@index([familyId, createdAt], map: "SalesOpportunityQualificationEvent_family_idx")
 }
