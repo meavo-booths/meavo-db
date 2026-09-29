@@ -256,3 +256,15 @@ Migration is additive and compatible with the pinned Sales Prisma client through
 ## Manual historical forecast runs (Sales)
 
 `SalesForecastManualRun` preserves independently requested historical forecasts and their AI usage. It shares the daily run's checkpoint/lease/accounting fields, adds a two-hour deadline and scalar requester attribution, and permits multiple runs per date. It has no User/Deal foreign keys or automatic deletion. Keeping manual executions separate preserves compatibility with the existing unique-per-day `SalesForecastRun` writers. Apply the additive `scripts/sales-forecast-manual-runs.sql` before the Sales settings release; rollback retains all data. The SQL consumer requires no new package tag. Production migration and both main releases require the reviewed-staging approval.
+
+## Sales payment history
+
+`SalesPayment` stores individual Xero, OA and manual net customer receipts with
+separate received and recorded dates. Manual opening balances may be undated
+until reconciled. Unique Xero IDs prevent duplicate imports; voided rows remain
+for audit. Nullable Deal links use SET NULL to retain financial history.
+`SalesPaymentWindow` tracks complete imported ranges; `SalesPaymentSync` leases
+imports and records availability. Apply `scripts/sales-payment-history.sql`.
+It adds three tables and indexes without modifying existing data. The consumer
+uses parameterized SQL with its existing generated client, as forecast stores
+do, so no dependency tag publication is required for this additive release.
