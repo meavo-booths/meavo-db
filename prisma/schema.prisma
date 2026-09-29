@@ -1391,6 +1391,7 @@ model Deal {
   boothUnits       BoothUnit[]
   assemblies       Assembly[]
   auditLogs        DealAuditLog[]
+  payments         SalesPayment[]
   attachments      DealAttachment[]
   subscriptions    DealSubscription[]
   labels           DealLabelAssignment[]
@@ -1422,6 +1423,49 @@ model DealAuditLog {
 
   @@index([dealId, createdAt])
   @@index([actorUserId])
+}
+
+/// Dated net customer receipts. Historical manual opening balances have no
+/// receivedOn / amountEur until reconciled. Xero IDs make imports idempotent.
+model SalesPayment {
+  id              String   @id @default(cuid())
+  dealId          String?
+  source          String
+  invoiceKey      String
+  xeroPaymentId   String?  @unique
+  xeroInvoiceId   String?
+  receivedOn      DateTime? @db.Date
+  amount          Decimal  @db.Decimal(18, 6)
+  currency        String
+  amountEur       Decimal? @db.Decimal(18, 2)
+  reference       String   @default("")
+  recordedAt      DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  voidedAt        DateTime?
+  /// Historical actor identifier, retained independently of account deletion.
+  recordedById    String?
+  deal            Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([receivedOn, voidedAt])
+  @@index([dealId])
+  @@index([xeroInvoiceId])
+}
+
+/// Only complete successful provider snapshots establish imported coverage.
+model SalesPaymentWindow {
+  id           String @id
+  fromDate     DateTime @db.Date
+  toDate       DateTime @db.Date
+  syncedAt     DateTime
+}
+
+/// Global import lease prevents overlapping snapshots from overwriting newer data.
+model SalesPaymentSync {
+  id             String @id @default("xero")
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  lastSuccessAt  DateTime?
+  lastError      String?
 }
 
 /// Files attached to a quote/deal (sales app) — customer POs, floor plans,
