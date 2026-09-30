@@ -1728,6 +1728,57 @@ model XeroIntegrationSettings {
 
 // ---- HubSpot integration (owner: sales) ----
 
+/// Resumable, read-only HubSpot Marketing import. SQL enforces singleton/status values.
+model HubSpotMarketingSync {
+  id                String    @id @default("default")
+  portalId          String?
+  timeZone          String?
+  status            String    @default("IDLE")
+  phase             String    @default("ACCOUNT")
+  runId             String?
+  runStartedAt      DateTime?
+  inventoryAfter    String?
+  inventoryArchived Boolean   @default(false)
+  lastSuccessAt     DateTime?
+  lastError         String?
+  leaseToken        String?
+  leaseExpiresAt    DateTime?
+  updatedAt         DateTime  @default(now()) @updatedAt
+}
+
+/// Classification is initialized from the name once, then owned by Sales administrators.
+model HubSpotMarketingForm {
+  id                 String    @id
+  portalId           String
+  name               String
+  family             String?
+  countryCode        String?
+  archived           Boolean   @default(false)
+  seenRunId          String
+  cursorRunId        String?
+  submissionAfter    String?
+  completedRunId     String?
+  lastSyncedAt       DateTime?
+  mappingUpdatedById String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @default(now()) @updatedAt
+  submissions        HubSpotMarketingSubmission[]
+
+  @@index([family, countryCode])
+}
+
+/// No contact IDs, names, emails, or submitted field values are stored.
+model HubSpotMarketingSubmission {
+  formId       String
+  submissionId String
+  submittedAt  DateTime
+  seenRunId    String
+  form         HubSpotMarketingForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@id([formId, submissionId])
+  @@index([submittedAt])
+}
+
 /// Mirror of the HubSpot deal property `closed_lost_reason` options, refreshed
 /// by the sales app's HubSpot cron. HubSpot owns this list; the sales app reads
 /// it to populate the mark-lost picker, so the picker keeps working when the
