@@ -277,9 +277,13 @@ Compatibility: **not** safe for older clients once a row holds the new value. Pr
 throws when it reads an enum value missing from its generated client. Consumers of
 `Assembly.eventType`: Assembly (writes it) and Sales (`deals/[id]` page selects it).
 Tasks selects only `id`/`dealId` and Gateway does not read assemblies. So the order is:
-publish the tag, release Sales on it, release Assembly on it, and only then apply the
-SQL to production (Assembly will not offer the option to staff before that). Until the
-SQL is applied, choosing Delivery Only fails at the database with an invalid-enum error.
+publish the tag, release Sales on it, apply the SQL to production, and only then release
+Assembly. Sales goes first so no client that cannot read the value exists when a row can
+first hold it. The SQL goes before Assembly because Assembly offers the option to staff as
+soon as it is released; releasing it earlier would show an option that fails with an
+invalid-enum database error until the SQL is applied. Applying the SQL before Assembly
+is safe: no app offers the value yet. Anything that can save an assembly against the
+shared database, including a staging deployment, counts as offering it.
 Validate on an isolated non-production database first, applying the script twice.
 
 Rollback: Postgres cannot drop an enum value, so the value stays. Stop offering it in
