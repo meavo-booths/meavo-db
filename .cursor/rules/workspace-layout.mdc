@@ -1,0 +1,9 @@
+---
+description: App ownership, workspace placement and resumed-chat instructions
+alwaysApply: true
+---
+
+Read the root AGENTS.md, including its Workspace and agent entry points section.
+Use its registered-workspace or standalone-clone instructions as appropriate.
+Read AGENT_ENVIRONMENTS.md before environment or deployment work.
+Workspace rules do not grant release permission or replace RELEASE_POLICY.md.
