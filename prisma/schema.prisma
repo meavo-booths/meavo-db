@@ -572,6 +572,7 @@ enum AssemblyEventType {
   MOVING_SERVICE
   AFTERCARE
   INFO
+  DELIVERY_ONLY
 }
 
 enum AssemblyInternalTeam {
