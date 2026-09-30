@@ -265,6 +265,27 @@ until reconciled. Unique Xero IDs prevent duplicate imports; voided rows remain
 for audit. Nullable Deal links use SET NULL to retain financial history.
 `SalesPaymentWindow` tracks complete imported ranges; `SalesPaymentSync` leases
 imports and records availability. Apply `scripts/sales-payment-history.sql`.
+
+## Assembly "Delivery Only" event type
+
+`AssemblyEventType` gains `DELIVERY_ONLY` for visits where MEAVO only delivers the
+booth (no install). Apply `scripts/add-assembly-delivery-only-event-type.sql`; it is
+one idempotent `ALTER TYPE ... ADD VALUE IF NOT EXISTS`, so no rows, columns or other
+enum values change.
+
+Compatibility: **not** safe for older clients once a row holds the new value. Prisma
+throws when it reads an enum value missing from its generated client. Consumers of
+`Assembly.eventType`: Assembly (writes it) and Sales (`deals/[id]` page selects it).
+Tasks selects only `id`/`dealId` and Gateway does not read assemblies. So the order is:
+publish the tag, release Sales on it, release Assembly on it, and only then apply the
+SQL to production (Assembly will not offer the option to staff before that). Until the
+SQL is applied, choosing Delivery Only fails at the database with an invalid-enum error.
+Validate on an isolated non-production database first, applying the script twice.
+
+Rollback: Postgres cannot drop an enum value, so the value stays. Stop offering it in
+Assembly's dropdown and re-type any `DELIVERY_ONLY` rows (for example to `ASSEMBLY`).
+Schema application, the package tag, and each consumer release follow the
+release-policy approval steps above.
 It adds three tables and indexes without modifying existing data. The consumer
 uses parameterized SQL with its existing generated client, as forecast stores
 do, so no dependency tag publication is required for this additive release.
