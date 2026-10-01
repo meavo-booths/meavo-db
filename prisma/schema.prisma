@@ -1251,6 +1251,12 @@ model Deal {
   /// quote is won. Same key as Assembly.dealId and GatewaySheetRecord.rowKey.
   dealId String? @unique
 
+  /// Pending Sales business-ID rename, including captured Ops/HubSpot targets.
+  /// Keeps the previous ID reserved until downstream synchronization completes.
+  dealIdRenameSync Json?
+  /// Earlier business IDs remain reserved to this record after synchronization.
+  previousDealIds String[] @default([])
+
   /// Quote variation family (owner: sales). Null = this row is the canonical
   /// quote (MQ-00123). Variations point at the canonical and use letter
   /// suffixes (MQ-00123a). Conversion metrics count distinct families.
