@@ -106,6 +106,22 @@ Consumer apps must **never** run `db:push` themselves — their partial schemas 
 
 ## Sales deal collections and labels
 
+`DealLabel.kind` separates `STANDARD` labels from `CAMPAIGN` labels while sharing
+the existing assignment table. Apply `scripts/sales-label-campaigns.sql` before
+the updated Sales consumer. Existing rows and older writers default to
+`STANDARD`; label IDs, assignments, normalization and global name uniqueness
+remain unchanged. The reserved `OA Invoice` label is constrained to `STANDARD`.
+Campaigns are internal reporting/filter metadata and do not appear on feed cards
+or customer documents. New quote variations inherit editable label assignments;
+subsequent edits are independent.
+
+Validate the SQL twice against an isolated database. Package/tag publication,
+production SQL, and Sales deployment require the separate release approvals in
+`RELEASE_POLICY.md`. Old consumers can still read and write their known columns,
+but would present campaigns as ordinary labels; create campaign data only after
+the updated Sales consumer is deployed. Rollback retains the additive column,
+enum and assignments; do not delete campaign data or drop the enum/column.
+
 `Deal.amountCollected` is the cash collected so far on a won deal, in the
 invoice currency and excluding VAT (the same basis as the Ops File's "Amount
 Collected" column). The Sales app sets it from the Xero payment sync and from
