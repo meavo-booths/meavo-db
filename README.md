@@ -47,7 +47,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 
 | Domain | Owner app | Tables |
 | --- | --- | --- |
-| Identity & access | gateway | User, Account, Team, TeamMember, ToolCard, ToolCardAccess, LoginThrottle |
+| Identity & access | gateway | User, Account, Team, TeamSubgroup, TeamMember, GatewayUserImportReceipt, ToolCard, ToolCardAccess, LoginThrottle |
 | HR & documents | gateway | CompanyProfile, Employee, EmployeeSalaryHistory, EmployeeDocument, DocumentTemplate*, GeneratedDocument, LibraryAsset, GatewaySheetRecord |
 | Vacation | hols | VacationRequest, UserAllowance, PublicHoliday |
 | Assembly | assembly | Assembly, AssemblyPartner, Questionnaire*, Question*, Submission*, Resource*, SheetImportState |

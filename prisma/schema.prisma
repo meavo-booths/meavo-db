@@ -55,6 +55,7 @@ model User {
   updatedAt     DateTime   @updatedAt
 
   accounts           Account[]
+  gatewayUserImports GatewayUserImportReceipt[]
   teamMembers        TeamMember[]
   cardAccess         ToolCardAccess[]
   employee           Employee?
@@ -135,20 +136,52 @@ model Team {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   members         TeamMember[]
+  subgroups       TeamSubgroup[]
   taskWorkspaces  TaskWorkspace[]
+}
+
+/// Optional organizational labels inside a team; never an access or approval boundary.
+model TeamSubgroup {
+  id        String   @id @default(cuid())
+  teamId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team    Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+
+  @@unique([teamId, name])
+  @@unique([id, teamId])
 }
 
 model TeamMember {
   id        String   @id @default(cuid())
   userId    String
   teamId    String
+  subgroupId String?
   role      TeamRole @default(MEMBER)
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  subgroup TeamSubgroup? @relation(fields: [subgroupId, teamId], references: [id, teamId], onDelete: Restrict)
 
   @@unique([userId, teamId])
+  @@index([teamId, subgroupId])
+}
+
+/// Successful import receipt only; result must never contain CSV, payroll or credentials.
+model GatewayUserImportReceipt {
+  id          String   @id
+  actorId     String
+  requestHash String
+  result      Json
+  createdAt   DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId, createdAt])
 }
 
 model ToolCard {
@@ -1496,16 +1529,24 @@ model DealAttachment {
   @@index([dealId])
 }
 
+enum DealLabelKind {
+  STANDARD
+  CAMPAIGN
+}
+
 /// Reusable deal label (sales app). `normalizedName` is the trimmed lower-case
 /// name, so labels are unique regardless of case.
 model DealLabel {
-  id             String   @id @default(cuid())
+  id             String        @id @default(cuid())
   name           String
-  normalizedName String   @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  normalizedName String        @unique
+  kind           DealLabelKind @default(STANDARD)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   deals DealLabelAssignment[]
+
+  @@index([kind, name])
 }
 
 model DealLabelAssignment {

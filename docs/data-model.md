@@ -10,7 +10,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 
 | Schema section | Owner app | Representative models |
 |----------------|-----------|-----------------------|
-| Identity & access | gateway | `User`, `Account`, `Team`, `TeamMember`, `ToolCard`, `ToolCardAccess`, `LoginThrottle` |
+| Identity & access | gateway | `User`, `Account`, `Team`, `TeamSubgroup`, `TeamMember`, `GatewayUserImportReceipt`, `ToolCard`, `ToolCardAccess`, `LoginThrottle` |
 | HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `DocumentTemplate*`, `GeneratedDocument`, `LibraryAsset`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner`, `Questionnaire*`, `QuestionnaireSubmission`, `Resource*`, `SheetImportState` |
@@ -39,6 +39,34 @@ User ──< TeamMember >── Team
 All satellite domains foreign-key to the shared `User` / `Team` — never duplicate identity tables.
 Historical Sales priority recipient/actor IDs are the deliberate exception:
 their dated records survive account deletion and do not represent live access.
+
+### Team subgroups and user imports
+
+`TeamSubgroup` is an optional organizational label inside one existing team.
+Its name is unique within that team; another team may reuse the same name.
+`TeamMember.subgroupId` is nullable and its composite foreign key with `teamId`
+guarantees the subgroup belongs to the membership's team. Existing memberships
+stay unassigned. Subgroups do not grant tool access, change team roles or holiday
+allowances, or create a separate approval boundary. Gateway may rename a subgroup
+but does not reparent it. An assigned subgroup cannot be deleted; move or clear
+its memberships first. A team change must clear or replace the old subgroup.
+
+`GatewayUserImportReceipt` records a successful Gateway import in the same
+transaction as its writes. Its client-generated request ID, acting user and
+request hash let Gateway return the original result after a lost response,
+without repeating salary entries, resetting generated passwords or enqueueing
+notifications twice. The JSON result contains only safe row statuses and counts;
+never store uploaded CSV contents, payroll values or plaintext credentials.
+Gateway must verify the acting user and request hash before returning a receipt.
+
+Apply `scripts/add-team-subgroups.sql` after reviewing the schema diff and
+verifying the environment. It is additive, transactional and safe to rerun.
+Older consumers can keep reading teams and memberships without selecting the
+new nullable column. Older code that replaces a membership drops its subgroup,
+so Gateway must preserve or explicitly clear subgroup assignments when changing
+teams. Roll back application code without dropping these tables or the column;
+keep imported user/HR data and receipts intact. Any production SQL or package
+publication requires separate approval under `RELEASE_POLICY.md`.
 
 ### Tool-scoped access roles
 
@@ -77,6 +105,22 @@ There is **no Prisma migrations directory**. Follow [RELEASE_POLICY.md](../RELEA
 Consumer apps must **never** run `db:push` themselves — their partial schemas would drop everyone else's tables.
 
 ## Sales deal collections and labels
+
+`DealLabel.kind` separates `STANDARD` labels from `CAMPAIGN` labels while sharing
+the existing assignment table. Apply `scripts/sales-label-campaigns.sql` before
+the updated Sales consumer. Existing rows and older writers default to
+`STANDARD`; label IDs, assignments, normalization and global name uniqueness
+remain unchanged. The reserved `OA Invoice` label is constrained to `STANDARD`.
+Campaigns are internal reporting/filter metadata and do not appear on feed cards
+or customer documents. New quote variations inherit editable label assignments;
+subsequent edits are independent.
+
+Validate the SQL twice against an isolated database. Package/tag publication,
+production SQL, and Sales deployment require the separate release approvals in
+`RELEASE_POLICY.md`. Old consumers can still read and write their known columns,
+but would present campaigns as ordinary labels; create campaign data only after
+the updated Sales consumer is deployed. Rollback retains the additive column,
+enum and assignments; do not delete campaign data or drop the enum/column.
 
 `Deal.amountCollected` is the cash collected so far on a won deal, in the
 invoice currency and excluding VAT (the same basis as the Ops File's "Amount
