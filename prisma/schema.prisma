@@ -1529,16 +1529,24 @@ model DealAttachment {
   @@index([dealId])
 }
 
+enum DealLabelKind {
+  STANDARD
+  CAMPAIGN
+}
+
 /// Reusable deal label (sales app). `normalizedName` is the trimmed lower-case
 /// name, so labels are unique regardless of case.
 model DealLabel {
-  id             String   @id @default(cuid())
+  id             String        @id @default(cuid())
   name           String
-  normalizedName String   @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  normalizedName String        @unique
+  kind           DealLabelKind @default(STANDARD)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   deals DealLabelAssignment[]
+
+  @@index([kind, name])
 }
 
 model DealLabelAssignment {
