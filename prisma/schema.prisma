@@ -1541,12 +1541,24 @@ model DealLabel {
   name           String
   normalizedName String        @unique
   kind           DealLabelKind @default(STANDARD)
+  /// Non-null only for Campaigns managed by the inbound HubSpot integration.
+  hubspotCampaignId String? @unique
+  hubspotPortalId   String?
+  hubspotArchived   Boolean @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
   deals DealLabelAssignment[]
 
   @@index([kind, name])
+}
+
+/// Inbound Campaign refresh health; one account, no relation to CRM snapshots.
+model HubSpotCampaignSyncState {
+  portalId        String   @id
+  lastAttemptedAt DateTime
+  lastSyncedAt    DateTime?
+  lastError       String?
 }
 
 model DealLabelAssignment {
