@@ -14,7 +14,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `DocumentTemplate*`, `GeneratedDocument`, `LibraryAsset`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner`, `Questionnaire*`, `QuestionnaireSubmission`, `Resource*`, `SheetImportState` |
-| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `Deal`, `DealLabel`, `DealLabelAssignment`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
+| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `ClientMergeAudit`, `Deal`, `DealLabel`, `DealLabelAssignment`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
 | Sales daily priorities | sales | `SalesRepIdentity`, `SalesPrioritySettings`, `SalesPriorityRun`, `SalesPriorityWorkItem`, `SalesOpportunitySnapshot`, `SalesCrmSnapshot`, `SalesCompanyResearch`, `SalesPriorityRecommendation`, `SalesPriorityFeedback` |
 | Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroIntegrationSettings` |
 | Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting` |
@@ -158,6 +158,60 @@ environment already updated with `db push`: Prisma does not express the expense
 and normalized-name CHECK constraints. The script is additive, transactional,
 and idempotent. Review the live schema diff before applying, then follow the
 tagged release and consumer-bump process above.
+
+## Sales client merges
+
+`Client.mergedIntoClientId` is a permanent alias to the retained client. Merged
+rows keep their old identity and scalar values for old links, but become
+immutable. A later merge can create an alias chain; resolve it in Sales rather
+than rewriting earlier aliases. Nullable `mergedByUserId` links the shared user,
+and `mergedAt` records retirement. The source has no parent after retirement.
+
+`ClientMergeAudit.id` is the server-created preview UUID and transaction
+idempotency key. A unique `sourceClientId` allows one committed merge per source.
+The JSON snapshots, explicit resolutions, and transferred record IDs preserve
+what was approved; those JSON references intentionally have no foreign keys to
+deals or events that may later be cleaned up. Audit updates/deletes and merged
+client updates/deletes are rejected. Shared User deletion can only null its
+attribution foreign keys. Client deletion is restricted by aliases and audits.
+
+`Deal.xeroRoutingMode` defaults to `FOLLOW_CLIENT`, preserving existing behavior.
+`FIXED` requires both the original contact ID and connection key. `UNMATCHED`
+preserves the absence of an accounting match without a fallback. Both
+`FOLLOW_CLIENT` and `UNMATCHED` require null routing identifiers. Sales captures
+the effective routing before moving deals; the database does not call Xero or
+change quote/invoice snapshots.
+
+Apply `scripts/client-merge.sql` before the new Sales consumer. It adds columns,
+an enum, audit storage, checks, and triggers without rewriting existing rows.
+The source is retired last: every deal, contact, label assignment, child client,
+and event (including soft-deleted events awaiting receipt cleanup) must already
+be moved or removed. Receipt keys and event IDs stay unchanged. The triggers
+reject insertion or reassignment to an already merged client; updates that leave
+the client ID unchanged continue to work for historical deals and cleanup.
+
+For merge transactions, Sales acquires sorted per-deal advisory locks in
+namespace `1819242082`, then sorted profile-contact advisory locks in namespace
+`1819242086`, then the client creation/name advisory lock in namespace
+`1819242085`, then all affected Client row locks in sorted ID order, then
+Deal/Event row locks. Profile-contact operations hold their advisory lock across
+external work and local linking, so a merge cannot retire their client between
+those steps. Attachment guards use `FOR SHARE` on the target Client
+to serialize their active check with retirement. Writers that change an
+attachment must follow the same order; triggers protect data integrity but do
+not eliminate deadlocks from older writers with a different lock order. Treat a
+deadlock or serialization failure as a failed transaction and retry/re-preview
+through the application. Receipt cleanup needs only its existing Event lock.
+
+Run `scripts/client-merge-check.sql` only on an isolated database: it creates
+transactional fixtures and rolls them back. Validate the migration twice before
+the checks; an in-memory PGlite database initialized with the prior Prisma schema
+is sufficient for constraint/trigger checks. Real concurrent sessions are still
+needed to verify blocking/lock ordering. Follow the release policy for schema,
+package, and consumer rollout. Older consumers may write active clients, but
+merges must remain disabled until every relevant Sales read/write path supports
+aliases. Rollback keeps the additive schema and guards: never remove aliases or
+audit evidence to roll an application back.
 
 ## Sales daily priorities
 
