@@ -727,6 +727,8 @@ model QuestionnaireSection {
   sortOrder       Int
   type            QuestionnaireSectionType @default(QUESTIONS)
   photosRequired  Boolean                 @default(true)
+  /// Text shown to partners under the title (image-upload sections). Null = the app's default copy.
+  description     String?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
 
@@ -766,10 +768,12 @@ model Question {
 
 model QuestionnaireSectionTranslation {
   sectionId String
-  locale    QuestionnaireLocale
-  title     String
-  status    TranslationStatus @default(DRAFT)
-  updatedAt DateTime          @updatedAt
+  locale      QuestionnaireLocale
+  title       String
+  /// Translation of QuestionnaireSection.description; null when the section has none.
+  description String?
+  status      TranslationStatus @default(DRAFT)
+  updatedAt   DateTime          @updatedAt
 
   section QuestionnaireSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
 
@@ -2087,6 +2091,8 @@ model SalesPriorityFeedback {
   userName         String?
   /// HELPFUL, DISMISSED, or ACTED; validated by Sales.
   kind             String
+  /// Optional short free-text reason from the rep (Sales caps the length).
+  comment          String?
   createdAt        DateTime @default(now())
 
   recommendation SalesPriorityRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
