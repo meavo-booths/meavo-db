@@ -101,6 +101,8 @@ model User {
   clientEventsCreated        ClientEvent[]        @relation("ClientEventCreator")
   clientEventsUpdated        ClientEvent[]        @relation("ClientEventEditor")
   clientEventReceiptsUploaded ClientEventReceipt[] @relation("ClientEventReceiptUploader")
+  clientsMerged              Client[]             @relation("ClientMergedBy")
+  clientMergesPerformed      ClientMergeAudit[]    @relation("ClientMergeActor")
   salesRepIdentities          SalesRepIdentity[]
 
   featureRequestsAuthored FeatureRequest[]     @relation("FeatureRequestAuthor")
@@ -1156,8 +1158,19 @@ model Client {
   /// Parent company (e.g. "Amazon"). Null = standalone client or group head.
   parentClientId String?
 
-  parent       Client?  @relation("ClientHierarchy", fields: [parentClientId], references: [id], onDelete: SetNull)
-  subsidiaries Client[] @relation("ClientHierarchy")
+  /// Permanent alias retained after merging. Normal selectors exclude these rows;
+  /// old links follow this relation until they reach an active client.
+  mergedIntoClientId String?
+  mergedAt           DateTime?
+  mergedByUserId     String?
+
+  parent              Client?            @relation("ClientHierarchy", fields: [parentClientId], references: [id], onDelete: SetNull)
+  subsidiaries        Client[]           @relation("ClientHierarchy")
+  mergedInto          Client?            @relation("ClientMergeAliases", fields: [mergedIntoClientId], references: [id], onDelete: Restrict)
+  mergedAliases       Client[]           @relation("ClientMergeAliases")
+  mergedBy            User?              @relation("ClientMergedBy", fields: [mergedByUserId], references: [id], onDelete: SetNull)
+  mergeAudit          ClientMergeAudit?  @relation("ClientMergeSource")
+  retainedMergeAudits ClientMergeAudit[] @relation("ClientMergeRetained")
 
   contacts ClientContact[]
   deals    Deal[]
@@ -1166,6 +1179,27 @@ model Client {
 
   @@index([name])
   @@index([parentClientId])
+  @@index([mergedIntoClientId])
+}
+
+/// Immutable merge evidence. id is the preview UUID, reused for idempotent retries.
+/// Snapshots and transferred record IDs survive deletion of individual child rows.
+model ClientMergeAudit {
+  id                 String   @id
+  sourceClientId     String   @unique
+  retainedClientId   String
+  actorUserId        String?
+  createdAt          DateTime @default(now())
+  sourceSnapshot     Json
+  retainedSnapshot   Json
+  resolutions        Json
+  transferredRecords Json
+
+  source   Client @relation("ClientMergeSource", fields: [sourceClientId], references: [id], onDelete: Restrict)
+  retained Client @relation("ClientMergeRetained", fields: [retainedClientId], references: [id], onDelete: Restrict)
+  actor    User?  @relation("ClientMergeActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([retainedClientId, createdAt])
 }
 
 model ClientContact {
@@ -1275,6 +1309,14 @@ model ClientEventReceipt {
   @@index([status, createdAt])
 }
 
+/// A merged client's deals retain the original routing decision. FIXED routes
+/// are valid only for their captured Xero connection; UNMATCHED never falls back.
+enum DealXeroRoutingMode {
+  FOLLOW_CLIENT
+  FIXED
+  UNMATCHED
+}
+
 model Deal {
   id          String    @id @default(cuid())
   quoteNumber String    @unique
@@ -1380,6 +1422,10 @@ model Deal {
 
   /// User opted out of creating a Xero invoice at win time (manual DealID path).
   skipXeroOnWin Boolean @default(false)
+
+  xeroRoutingMode          DealXeroRoutingMode @default(FOLLOW_CLIENT)
+  xeroRoutingContactId     String?
+  xeroRoutingConnectionKey String?
 
   /// Optional override of the market/US-state branding theme for this deal's invoices.
   xeroBrandingThemeId   String?
