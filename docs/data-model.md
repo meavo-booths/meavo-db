@@ -391,3 +391,16 @@ release-policy approval steps above.
 It adds three tables and indexes without modifying existing data. The consumer
 uses parameterized SQL with its existing generated client, as forecast stores
 do, so no dependency tag publication is required for this additive release.
+
+## Assembly questionnaire section text
+
+`QuestionnaireSection.description` and `QuestionnaireSectionTranslation.description` are
+nullable text columns holding the partner-facing sentence under an image-upload step's
+title (e.g. "Attach photos of the repair"). Null means Assembly shows its built-in default
+copy, so existing sections are unchanged. Apply
+`scripts/questionnaire-section-description.sql` (two idempotent
+`ADD COLUMN IF NOT EXISTS`, no backfill).
+
+Compatibility: apply the SQL before releasing any consumer on a client that includes these
+fields. Prisma selects every scalar column of a model by default, so a client that knows
+the columns fails on a database without them. Only Assembly reads these models.
