@@ -264,6 +264,11 @@ eligible, so a closed or dismissed quote can be replaced by the next candidate.
 recommendation/recipient/kind; Sales enforces that the authenticated recipient
 owns the recommendation. Kinds and statuses remain strings so future app changes
 can introduce values without changing a shared Postgres enum.
+Each feedback row may carry a nullable free-text `comment` (for example why a
+suggestion was dismissed). Sales trims and caps it, and a repeated submission of
+the same kind may fill or replace the comment without creating another row.
+Comments are rep-authored and untrusted: quote them as data if they are ever
+fed back into recommendation prompts.
 
 Recommendations and feedback retain `userId` as a scalar historical identity,
 with a nullable frozen `userName`. They have no User foreign key. New Sales
@@ -320,6 +325,12 @@ Prisma manages that timestamp via `@updatedAt`. Roll back app behavior without
 dropping the settings table or run history. Staging verification does not require
 publishing a package tag, and production migration/tag/app releases each follow
 the release-policy approval steps above.
+
+Apply `scripts/sales-priority-feedback-comment.sql` before the Sales release that
+writes feedback comments. It adds only the nullable `comment` column to
+`SalesPriorityFeedback`; existing rows and older Sales releases (which name their
+insert columns) are unaffected, and rerunning it is a no-op. Roll back app
+behavior without dropping the column or saved comments.
 
 ## Sync / external copies
 
