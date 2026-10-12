@@ -2087,6 +2087,8 @@ model SalesPriorityFeedback {
   userName         String?
   /// HELPFUL, DISMISSED, or ACTED; validated by Sales.
   kind             String
+  /// Optional short free-text reason from the rep (Sales caps the length).
+  comment          String?
   createdAt        DateTime @default(now())
 
   recommendation SalesPriorityRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
