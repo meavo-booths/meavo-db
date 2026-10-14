@@ -19,7 +19,7 @@ Environment: schema-only npm package (`@meavo/db`) — the canonical Prisma 6 sc
 - Rename/delete another app's models, fields, or enums without checking every consumer (ownership table in `README.md`).
 - Duplicate identity tables — foreign-key to the shared gateway `User` / `Team` models.
 - Add app code, seeds, or generated client output — schema + SQL scripts only.
-- Publish a tag just to test a consumer. Production dependencies use approved release tags; an immutable staging commit may be used only for documented, non-production validation under `RELEASE_POLICY.md`.
+- Point a production consumer at anything but an approved release tag. Staging consumers may pin an immutable staging commit until the release tag exists.
 - Commit `.env` or secret values.
 
 ## Code layout
@@ -36,7 +36,7 @@ Environment: schema-only npm package (`@meavo/db`) — the canonical Prisma 6 sc
 ```
 feat/* schema edit → validate → diff / test on isolated non-production DB
   → staging PR with reviewed SQL, consumer compatibility, and rollback notes
-  → specific human approval → production migration / main / release-tag publication
+  → one human yes per release → main merge + release tag + production SQL (scripts/apply-sql.sh production)
   → consumer feature PRs → staging validation → separate production approval
 ```
 

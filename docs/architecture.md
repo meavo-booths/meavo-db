@@ -44,7 +44,7 @@ package.json           # version = release tag; prisma is the only dependency
 ```
 feat/* schema edit → validate → diff / apply on isolated non-production DB
      └→ staging PR + SQL / compatibility / rollback review
-            └→ specific human approval → production migration / main / release tag
+            └→ one human yes per release → main merge + release tag + production SQL
                    └→ consumer feature PRs → staging validation → separate production approval
 ```
 

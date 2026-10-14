@@ -22,7 +22,7 @@ partial schema would drop the other apps' tables and columns.
 2. Validate: `npm run validate` (needs `DATABASE_URL` in `.env`). Confirm it targets an isolated non-production database.
 3. Review the SQL with `npm run diff`; test additive changes there with `npm run db:push`, or reviewed idempotent SQL through `prisma db execute` for ordering-sensitive/destructive changes.
 4. Open a PR against `staging` with the SQL, consumer compatibility checks, and rollback notes.
-5. Follow [RELEASE_POLICY.md](RELEASE_POLICY.md): obtain specific human approval before production database writes, promotion to `main`, or publishing a release tag/package.
+5. Follow [RELEASE_POLICY.md](RELEASE_POLICY.md): the only human gate is the staging → `main` release; its yes also covers the release tag and the release's production SQL.
 6. Prepare each affected app’s dependency bump as a feature PR against `staging`; production rollout requires its own approval.
 
 ## How apps consume it
@@ -77,4 +77,4 @@ counts for tool-card stats) but should only **write** through the owner app.
 
 Sales owns `SalesForecastManualRun`; it retains manual historical forecasts and per-run cost history alongside daily `SalesForecastRun` snapshots. Apply `scripts/sales-forecast-manual-runs.sql` before the consumer release.
 
-Sales Marketing form reporting uses the additive `scripts/sales-marketing.sql` migration. It stores form metadata, submission identifiers/timestamps and resumable sync state, without contact fields. Apply to isolated staging before the Sales consumer; production migration and package publication require explicit approval.
+Sales Marketing form reporting uses the additive `scripts/sales-marketing.sql` migration. It stores form metadata, submission identifiers/timestamps and resumable sync state, without contact fields. Apply to isolated staging before the Sales consumer; production migration and package publication go out with the approved release.

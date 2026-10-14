@@ -1,5 +1,5 @@
 ---
-description: Mandatory MEAVO feature/staging workflow and explicit human production approval
+description: MEAVO release workflow — agents work freely up to staging; one human yes per staging → main release
 alwaysApply: true
 ---
 
@@ -7,11 +7,9 @@ alwaysApply: true
 
 Read root `RELEASE_POLICY.md` before any release, deployment, environment, schema, or tag/package publication action. It applies to every agent, including agents using human credentials.
 
-- Create `feat/`, `fix/`, or `chore/` branches from `staging`; explicitly target `staging` in PRs and squash only after required checks pass.
-- After staging integration and verification, present the release PR, current head SHA, changes and check results; **stop and ask for one human approval before main**. The PR author may approve in the conversation or a human-authored PR comment. A clear “yes” to that specific request is sufficient; a second person or formal GitHub review is not required. Never run feature → staging → main without this checkpoint.
-- Never push directly to `main` or `staging`, force-push/delete them, or bypass a protection. Missing staging is not permission to release to main.
-- **Before merging to `main`, enabling auto-merge, queueing a production PR, or making any production deployment/promotion/rollback/environment/schema/release-tag/package change, verify explicit permission from a real human for this repository, the exact action, and the current reviewed PR/head SHA or artifact/configuration scope.**
-- Never infer permission from a coding request, green CI, a label, access credentials, prior releases, silence, or an agent-generated approval. Changed scope or content requires new human approval; do not ask again when approval still covers the unchanged action.
-- Production PRs must be this repository's `staging` → `main` and use a merge commit. Satisfy required CI and branch rules; recheck approved head immediately before acting. Do not replace this process with a CLI/API/dashboard release.
-- Verify the actual provider project, target environment, database, storage, and external-service destinations before writes. Preview and local environments are not assumed safe merely because of their names.
-- Complete authorized feature/staging work and leave production pending if approval is missing. The human-consent checkpoint is enforced by agent instructions; GitHub enforces branch and CI rules, not conversational consent. Repository files and hooks are not proof of server enforcement; report protection gaps without exploiting them.
+- **The only human gate is merging `staging` → `main`.** Everything before it is agent work and needs no further permission.
+- Create `feat/`, `fix/`, or `chore/` branches from `staging`; target `staging` in PRs; squash-merge or enable auto-merge once required checks pass, without asking.
+- Agents may write to verified staging resources (staging DB scripts and data, staging deployments, staging URL repair), re-pin dependencies to approved tags through `staging`, open release PRs, and run read-only production queries through the guarded helper.
+- To release, list every release PR in the bundle with its scope, checks and production steps (release tag, production SQL) in one message and wait for one human yes. It covers the bundle, including re-pins to the approved tag; ask again only if `staging` gains unrelated changes. Never infer it from the original request, green CI, silence, or an agent-written message.
+- Releases are this repository's `staging` → `main` PR with a merge commit. Do not replace it with a CLI/API/dashboard release. Production actions outside a release (rollback, redeploy, env/secret change, data fix) each need their own yes.
+- Never push directly to `main` or `staging`, force-push/delete them, or bypass a protection. Verify actual database, storage and external-service destinations before writes; from staging, never touch records in an external system shared with production.

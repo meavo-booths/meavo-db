@@ -3,8 +3,10 @@
 
 The manifest detects drift; it is not proof of human authorization. GitHub must
 require this check and branch protections without a bypass on main. Agents must
-separately stop after verified staging and obtain one human decision, including
-from the PR author; formal GitHub approval is not required or verified here.
+separately obtain one human yes for each release bundle merged into main (from
+staging, or from a feature branch for the explicitly listed website exception);
+the PR author may give it, and formal GitHub approval is not required or verified
+here.
 """
 
 import argparse
@@ -17,6 +19,7 @@ from pathlib import Path
 BEGIN = "<!-- BEGIN MEAVO RELEASE POLICY -->"
 END = "<!-- END MEAVO RELEASE POLICY -->"
 MANIFEST = ".github/meavo-release-policy.json"
+DIRECT_MAIN_REPOSITORY = "meavo-booths/office-phone-booths-uk"
 FILES = (
     "RELEASE_POLICY.md",
     ".cursor/rules/release-process.mdc",
@@ -59,7 +62,13 @@ def verify(root):
     errors = []
     try:
         manifest = json.loads(checked_path(root, MANIFEST).read_text())
-        if not isinstance(manifest, dict) or set(manifest) != {"version", "files", "blocks"}:
+        if not isinstance(manifest, dict):
+            raise ValueError("invalid manifest fields")
+        required = {"version", "files", "blocks"}
+        if set(manifest) == required | {"repository", "profile"}:
+            if (manifest["repository"], manifest["profile"]) != (DIRECT_MAIN_REPOSITORY, "direct-main"):
+                raise ValueError("unrecognized repository release profile")
+        elif set(manifest) != required:
             raise ValueError("invalid manifest fields")
         if manifest["version"] != 1:
             raise ValueError("unsupported manifest version")
@@ -93,12 +102,14 @@ def verify(root):
     return errors
 
 
-def verify_event(event_path, event_name):
+def verify_event(event_path, event_name, policy_repository=None):
     """Read untrusted PR values as JSON data, never shell commands."""
     try:
         event = json.loads(Path(event_path).read_text())
         if not isinstance(event, dict):
             raise ValueError("event must be an object")
+        if policy_repository is not None and event["repository"]["full_name"] != policy_repository:
+            raise ValueError("installed repository profile does not match the GitHub event")
         if event_name == "push":
             if event.get("ref") not in ("refs/heads/main", "refs/heads/staging"):
                 raise ValueError("unexpected push branch for release-policy workflow")
@@ -113,8 +124,13 @@ def verify_event(event_path, event_name):
             repository = event["repository"]["full_name"]
             if (not isinstance(repository, str) or not repository
                     or base["repo"]["full_name"] != repository
-                    or pr["head"]["repo"]["full_name"] != repository
-                    or pr["head"]["ref"] != "staging"):
+                    or pr["head"]["repo"]["full_name"] != repository):
+                raise ValueError("main pull requests must originate from the same repository")
+            head = pr["head"]["ref"]
+            if repository == DIRECT_MAIN_REPOSITORY:
+                if not isinstance(head, str) or not head.strip() or head == "main":
+                    raise ValueError("website main pull requests need a non-main source branch")
+            elif head != "staging":
                 raise ValueError("main pull requests must originate from this repository's staging branch")
         return []
     except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -132,7 +148,11 @@ def main():
         parser.error("--event and --event-name must be used together")
     errors = verify(args.target.resolve())
     if args.event:
-        errors.extend(verify_event(args.event, args.event_name))
+        policy_repository = None
+        if not errors:
+            manifest = json.loads(checked_path(args.target.resolve(), MANIFEST).read_text())
+            policy_repository = manifest.get("repository")
+        errors.extend(verify_event(args.event, args.event_name, policy_repository))
     for error in errors:
         print(f"FAIL: {error}", file=sys.stderr)
     if errors:
