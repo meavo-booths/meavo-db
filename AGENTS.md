@@ -1,11 +1,11 @@
 <!-- BEGIN MEAVO RELEASE POLICY -->
 ## Release safety — mandatory for all AI agents
 
-- Default scope: create `feat/`, `fix/`, or `chore/` branches from `staging`; use PRs into `staging` and squash only after required checks pass.
-- After staging integration and verification, present the release PR, current head SHA, changes and checks; **stop and ask for one human approval before main**. The PR author may approve in the conversation or a human-authored PR comment; a clear “yes” to that specific request is sufficient. Never execute feature → staging → main without this checkpoint.
-- Do not merge to `main`, enable auto-merge/queue a production PR, or change production without **explicit human approval for this repository, the specific action, and the reviewed PR/head SHA or exact artifact/configuration scope**. Changed scope or head invalidates approval; never infer or generate it. Reuse still-valid approval without asking again.
-- Never push directly to `main`/`staging` or bypass protections. Missing `staging` is not permission to use `main`.
-- Read [RELEASE_POLICY.md](RELEASE_POLICY.md) before any release, deployment, environment, schema, or tag/package publication action. Verify actual environment destinations before writes.
+- **The only human gate is merging `staging` → `main`.** Everything before it is agent work: create `feat/`, `fix/`, or `chore/` branches from `staging`, open PRs into `staging`, and squash-merge or enable auto-merge once checks pass, without asking.
+- Agents may also write to verified staging resources (staging DB scripts and data, staging deployments), re-pin dependencies to approved tags through `staging`, open release PRs, and run read-only production queries through the guarded helper.
+- To release, list every release PR in the bundle with its scope and production steps (release tag, production SQL) in one message and wait for one human yes. That yes covers the bundle, including re-pins to the approved tag; ask again only if `staging` gains unrelated changes. Merge releases with a merge commit.
+- Never push directly to `main`/`staging`, bypass protections, or change production outside an approved release. From staging, never touch records in an external system shared with production.
+- Read [RELEASE_POLICY.md](RELEASE_POLICY.md) before release, deployment, environment, schema, or tag work. Verify actual environment destinations before writes.
 <!-- END MEAVO RELEASE POLICY -->
 
 <!-- BEGIN WORKSPACE LAYOUT -->
@@ -46,7 +46,7 @@ Quick orientation for AI agents working in this repo. Read this before exploring
 | Add a new app's domain | `prisma/schema.prisma` (new owner section at the end) + `README.md` ownership table |
 | Validate the schema | `npm run validate` (needs `DATABASE_URL` in `.env`) |
 | Preview SQL against the live DB | `npm run diff` |
-| Apply schema to an environment | Confirm the database target; test in isolation first. Production writes require specific human approval under [RELEASE_POLICY.md](RELEASE_POLICY.md) and the SQL review in [docs/data-model.md](docs/data-model.md) |
+| Apply schema to an environment | Confirm the database target; test in isolation first. Staging: `scripts/apply-sql.sh staging <script>` (agent work, run it twice). Production: `scripts/apply-sql.sh production <script>` from the release tag, as part of the approved release — see [RELEASE_POLICY.md](RELEASE_POLICY.md) and [docs/data-model.md](docs/data-model.md) |
 | Destructive / targeted migration | idempotent SQL like `scripts/add-task-tables.sql`, via `prisma db execute` |
 | Release + consumer bump process | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Factory app migration context | `neon-migration-audit.md` in the private Meavo-Factory repo (not in this repo) |
@@ -62,7 +62,7 @@ Quick orientation for AI agents working in this repo. Read this before exploring
 - Do NOT duplicate `User` / `Team` style identity tables for a new domain — foreign-key to the shared gateway models.
 - Do NOT add app code, seed data, or generated Prisma client output here — schema + SQL scripts only; each app keeps its own seed script.
 - Do NOT commit `.env` or any secret; only `DATABASE_URL`'s *name* is documented.
-- Do NOT publish a tag just to test a consumer. Production dependencies use approved release tags; an immutable staging commit may be used only for documented, non-production validation under `RELEASE_POLICY.md`.
+- Do NOT point a production consumer at anything but an approved release tag. Staging consumers may pin an immutable staging commit until the release tag exists.
 
 ## Commands
 
@@ -70,7 +70,7 @@ Quick orientation for AI agents working in this repo. Read this before exploring
 npm install          # installs prisma CLI (only dev dependency)
 npm run validate     # prisma validate (needs DATABASE_URL in .env)
 npm run diff         # SQL preview: live DB vs schema.prisma
-npm run db:push      # confirm isolated test DB; production requires specific human approval
+npm run db:push      # confirm isolated test DB; production only via an approved release
 npm run studio       # browse the live DB
 # no dev / test / lint / build — this is a schema-only package
 ```
@@ -79,7 +79,7 @@ npm run studio       # browse the live DB
 
 1. Schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----` section comments; new models go inside their owner's section.
 2. Naming: PascalCase models, camelCase fields, `cuid()` string IDs, `SCREAMING_SNAKE` enum values. Ported legacy tables keep their snake_case names via `@@map` / `@map`.
-3. Prepare schema/version changes on `feat/*` → `validate` → review `diff` and test against an isolated non-production DB → PR to `staging`. Obtain specific human approval under `RELEASE_POLICY.md` before production SQL, `main` promotion, or tag/package publication. Prepare consumer dependency bumps through their own feature/staging workflow.
+3. Prepare schema/version changes on `feat/*` → `validate` → review `diff` and test against an isolated non-production DB → PR to `staging`. Then ask once for the release bundle under `RELEASE_POLICY.md`; that yes covers the `main` merge, the tag and the production SQL. Prepare consumer dependency bumps through their own feature/staging workflow.
 4. Destructive or data-migrating steps go in an idempotent `scripts/*.sql` (`DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL`) with an "Apply:" comment header, not through `db push`.
 5. Commit messages: imperative sentence describing the schema change and the app it serves, e.g. "Add task management schema for tasks.meavo.app".
 

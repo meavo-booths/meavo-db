@@ -94,13 +94,13 @@ enum alone does not authorize a request.
 
 ## Applying changes (migration safety)
 
-There is **no Prisma migrations directory**. Follow [RELEASE_POLICY.md](../RELEASE_POLICY.md): test schema changes on an isolated non-production database and review them through `staging` before requesting approval for the exact production SQL and revision. The commands below are not permission to write to the shared production DB:
+There is **no Prisma migrations directory**. Follow [RELEASE_POLICY.md](../RELEASE_POLICY.md): test schema changes on an isolated non-production database and review them through `staging` before the release that carries it to production. The commands below are not permission to write to the shared production DB:
 
 1. Edit `prisma/schema.prisma`; `npm run validate`.
 2. `npm run diff` — **read the generated SQL**. Anything with `DROP` needs to be understood before going further; a stale or trimmed schema will drop other apps' tables.
 3. Additive changes: `npm run db:push`.
 4. Destructive or ordering-sensitive changes: write an **idempotent** script in `scripts/` (wrap `CREATE TYPE` etc. in `DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL`), with an `-- Apply:` header, and run `npx prisma db execute --file scripts/<file>.sql --schema prisma/schema.prisma`. See `scripts/add-task-tables.sql` for the pattern.
-5. Commit the version/schema changes on `feat/*` and open a PR against `staging`. Production application, `main` promotion, and release-tag/package publication require specific human approval. After the approved package release, prepare dependency bumps through each consumer’s feature-to-staging workflow.
+5. Commit the version/schema changes on `feat/*` and open a PR against `staging`. The release yes (staging → `main`) covers `main` promotion, the release tag and production application (`scripts/apply-sql.sh production`). After the approved package release, prepare dependency bumps through each consumer’s feature-to-staging workflow.
 
 Consumer apps must **never** run `db:push` themselves — their partial schemas would drop everyone else's tables.
 
@@ -308,7 +308,7 @@ row IDs, indexes, uniqueness rules and run/recommendation relationships remain.
 
 Older consumers can omit the new fields: memberships default to `MEMBER` and
 names remain nullable. Consumers may use parameterized SQL with their existing
-approved package pins until a separately approved canonical package release;
+approved package pins until the next approved release;
 do not publish a production tag merely to test staging. Rollback means reverting
 app behavior while retaining schema/history. An older Gateway's delete/recreate
 access save may reset retained roles to `MEMBER`; avoid those saves until the
@@ -364,7 +364,7 @@ N/A — this repo contains no query code. Prisma client helpers, seeds, and repo
 
 The run stores historical Deal and rep references inside JSON; no live User/Deal relationship can cascade-delete its history. Settings editor IDs are historical scalars, matching priority settings. No automatic retention deletion is introduced.
 
-Apply `scripts/sales-month-end-forecast.sql` before the Sales staging deployment. The script only adds the two tables, checks and indexes. Existing generated Prisma clients remain compatible; the first Sales consumer uses parameterized SQL. Production application requires approval of the reviewed SQL/revision. Rollback retains historical tables and disables processing. No tag is required for the backwards-compatible SQL consumer.
+Apply `scripts/sales-month-end-forecast.sql` before the Sales staging deployment. The script only adds the two tables, checks and indexes. Existing generated Prisma clients remain compatible; the first Sales consumer uses parameterized SQL. Production application goes out with the approved meavo-db release. Rollback retains historical tables and disables processing. No tag is required for the backwards-compatible SQL consumer.
 
 
 ## Opportunity forecast pilot (Sales)
@@ -373,7 +373,7 @@ Apply `scripts/sales-month-end-forecast.sql` before the Sales staging deployment
 
 `SalesOpportunityQualification` stores the current rep-confirmed buyer facts; immutable `SalesOpportunityQualificationEvent` revisions preserve actor names/IDs and source notes. Historical deal/actor IDs have no live-user/deal foreign keys, so account deletion, reassignment and closure cannot erase prediction evidence. Run/item references use RESTRICT and there is no automatic retention deletion. Complete-opportunity collection starts 2026-08-15; imported historical wins are never treated as a conversion denominator.
 
-Migration is additive and compatible with the pinned Sales Prisma client through bound SQL. Validate and apply in isolated staging before the Sales staging release. Production SQL, main release and processing activation require specific human approval. Rollback pauses processing and retains all tables.
+Migration is additive and compatible with the pinned Sales Prisma client through bound SQL. Validate and apply in isolated staging before the Sales staging release. Production SQL and the main release go out with one release yes; processing activation needs its own yes. Rollback pauses processing and retains all tables.
 
 ## Manual historical forecast runs (Sales)
 

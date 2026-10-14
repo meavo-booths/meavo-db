@@ -3,7 +3,7 @@
 -- Prerequisite: scripts/sales-daily-priorities.sql has been applied.
 -- Additive, transactional and idempotent; no settings or run data are overwritten.
 -- Verify the actual isolated non-production target before testing. Production
--- application requires exact SQL/revision approval under RELEASE_POLICY.md.
+-- application is part of the approved meavo-db release (RELEASE_POLICY.md).
 -- Application rollback must retain this table and historical modelConfig values.
 
 BEGIN;

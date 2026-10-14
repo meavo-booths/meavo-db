@@ -1,7 +1,7 @@
 -- Sales DealID editing: durable integration retry state and old-ID reservation.
 -- Apply: from meavo-db, after verifying the database target, run
 --   npx prisma db execute --file scripts/add-sales-deal-id-rename.sql
--- Test against an isolated database first. Production needs explicit approval.
+-- Test against staging first. Production: applied as part of the approved meavo-db release.
 -- Additive and compatible with older generated clients. No existing rows change.
 -- Roll back the consuming app first; retain the columns/trigger. Previous IDs
 -- remain reserved because historical Assembly/external references may use them.

@@ -1,14 +1,14 @@
 {
   "blocks": {
-    "AGENTS.md": "ae53df01a7f27b51f3b65da6b5ba8e78fb4811bdddb8ce2482e697df14c87c37",
-    "CLAUDE.md": "504fee4458c5182b4de63560938f0d5f9eb3b8742ad8d20883dc9bece94051ff",
-    "CONTRIBUTING.md": "0b13ae366c0ed244383be79fb6c9c9e848cc172a5eac6d177398dc6c35caf04e"
+    "AGENTS.md": "78605a893220d8a142b7fc12036fac7e415213e087fde987632be45ed3e835df",
+    "CLAUDE.md": "bb665b09174e186c81734baba976f0a41b7c821a9bd9734afff014988099ad37",
+    "CONTRIBUTING.md": "cfe0330a7d2ebcbd3618c506773c7de79aef658076e76f003673e3cc66dd19f6"
   },
   "files": {
-    ".cursor/rules/release-process.mdc": "07aeace11b38825d9be8592a6521bff5cea9a22f52f9fa2468cddee6fb5d4f4e",
+    ".cursor/rules/release-process.mdc": "f8b06c476de25b6bf7a1d2c6bb3d6fc15d2c58c65803bd0af040fc7256c7b890",
     ".github/workflows/release-policy.yml": "42afdb6f47af3007d1bcdaf76ab6e85f961105a1af109492ce443998f2610bea",
-    "RELEASE_POLICY.md": "42434dacb1568bc5f89817f859d4a99e4ca63343b881a61402699d8eb1d5935b",
-    "scripts/verify-release-policy.py": "b6b04c992f16d7b6f020cb8f183d17250e9848242ca5ee58010739e58d5839d8"
+    "RELEASE_POLICY.md": "49c824773640233f3dbd53bfa8146789543b282b69941c5441cd0bf863015d41",
+    "scripts/verify-release-policy.py": "7ad20203cb933f10cd661b8daa30e3d79735193f62e713b81cc67d9c981dd24a"
   },
   "version": 1
 }
