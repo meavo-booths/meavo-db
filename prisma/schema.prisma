@@ -208,6 +208,10 @@ model ToolCardAccess {
   userId    String
   cardId    String
   role      ToolAccessRole @default(MEMBER)
+  /// Sales only: may override any won deal's payment status and collected
+  /// amount, including Xero-synced ones. Independent of `role`; Super Admins
+  /// (`User.systemRole = ADMIN`) have it implicitly. Never grants other access.
+  paymentsOverride Boolean @default(false)
   createdAt DateTime @default(now())
 
   user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1423,6 +1427,14 @@ model Deal {
   xeroFinalInvoiceNumber String?
   xeroFinalSyncedAt      DateTime?
   xeroFinalSyncError     String?
+
+  /// Set by the Sales payment sync when Xero reports the linked invoice
+  /// DELETED or VOIDED (null while it is live). Payment status is left alone
+  /// and the hourly sync skips the deal; cleared when Sales unlinks the
+  /// invoice so a replacement can be created.
+  xeroInvoiceRemovedAt      DateTime?
+  /// Same as `xeroInvoiceRemovedAt`, for the final (balance) invoice.
+  xeroFinalInvoiceRemovedAt DateTime?
 
   /// User opted out of creating a Xero invoice at win time (manual DealID path).
   skipXeroOnWin Boolean @default(false)

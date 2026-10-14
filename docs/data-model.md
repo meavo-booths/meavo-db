@@ -332,6 +332,19 @@ writes feedback comments. It adds only the nullable `comment` column to
 insert columns) are unaffected, and rerunning it is a no-op. Roll back app
 behavior without dropping the column or saved comments.
 
+Apply `scripts/sales-payments-override.sql` before the Gateway and Sales
+releases that read or write the Payments right. It adds
+`ToolCardAccess.paymentsOverride` (NOT NULL, default false, so no existing grant
+gains the right) and the nullable `Deal.xeroInvoiceRemovedAt` /
+`Deal.xeroFinalInvoiceRemovedAt`. The Payments right is Sales-only and
+independent of the Sales role: a holder may override a won deal's payment status
+and collected amount even when it is synced from Xero; Super Admins have it
+implicitly. Gateway grants it; Sales enforces it server-side. The removed-at
+columns are written by the Sales Xero payment sync when Xero reports an invoice
+DELETED or VOIDED, and cleared when Sales unlinks that invoice so a replacement
+can be created. Rerunning the script is a no-op. Roll back app behavior without
+dropping the columns or granted rights.
+
 ## Sync / external copies
 
 Several domains mirror rows to Google Sheets or queue side effects; the outbox/state tables live here, the sync code lives in the owning app:
