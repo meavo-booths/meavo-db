@@ -1,6 +1,6 @@
 -- Sales: permanent client-merge aliases, immutable audit, and preserved Xero routing.
 -- Apply: npx prisma db execute --file scripts/client-merge.sql --schema prisma/schema.prisma
--- Apply only against a verified target. Production requires approval of this exact artifact.
+-- Apply only against a verified target. Production: applied as part of the approved meavo-db release.
 -- This additive, transactional script is idempotent. Use it instead of db push:
 -- Prisma cannot express the CHECK constraints or attachment/immutability guards.
 

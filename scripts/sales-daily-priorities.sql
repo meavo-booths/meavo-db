@@ -3,7 +3,7 @@
 -- Apply: npx prisma db execute --file scripts/sales-daily-priorities.sql --schema prisma/schema.prisma
 -- Additive and transactional; safe to rerun after a successful application.
 -- Verify an isolated non-production target before testing. Production application
--- requires the exact SQL/revision approval described in RELEASE_POLICY.md.
+-- is part of the approved meavo-db release (RELEASE_POLICY.md).
 -- Recipient IDs in recommendation/feedback history deliberately have no User
 -- foreign key. Follow with sales-admin-priorities.sql for tool roles and names.
 

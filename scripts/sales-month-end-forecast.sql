@@ -1,7 +1,7 @@
 -- Owner: Sales. Additive, transactional, idempotent; no existing data changed.
 -- Apply: npx prisma db execute --file scripts/sales-month-end-forecast.sql --schema prisma/schema.prisma
 -- Verify the actual isolated staging target before use. Production application
--- requires approval of this SQL/revision under RELEASE_POLICY.md.
+-- is part of the approved meavo-db release (RELEASE_POLICY.md).
 -- Rollback: disable forecast processing / roll back app; retain historical tables.
 BEGIN;
 SET LOCAL lock_timeout = '5s';

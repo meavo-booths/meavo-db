@@ -3,7 +3,7 @@
 -- Prerequisite: scripts/sales-daily-priorities.sql has been applied.
 -- Transactional and idempotent. Existing access becomes MEMBER; nobody is promoted.
 -- Verify the actual isolated non-production target before testing. Production
--- application requires exact SQL/revision approval under RELEASE_POLICY.md.
+-- application is part of the approved meavo-db release (RELEASE_POLICY.md).
 -- Roll back application code only; retain role fields and historical records.
 
 BEGIN;

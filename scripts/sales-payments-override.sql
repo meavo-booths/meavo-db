@@ -6,7 +6,7 @@
 --   Deal.xeroFinalInvoiceRemovedAt    (nullable)
 -- Older Gateway/Sales releases name their columns, so they keep working unchanged.
 -- Verify the actual isolated non-production target before testing. Production
--- application requires exact SQL/revision approval under RELEASE_POLICY.md.
+-- application is part of the approved meavo-db release (RELEASE_POLICY.md).
 -- Application rollback must retain these columns and any granted rights.
 
 BEGIN;
