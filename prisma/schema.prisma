@@ -641,6 +641,48 @@ model AssemblyPartner {
   notificationPreferences PartnerNotificationPreference[]
 }
 
+/// MEAVO's own install crews (e.g. LAT). Their members are ticked on events and
+/// invited to them via Google Calendar; distinct from external AssemblyPartner companies.
+model AssemblyTeam {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members AssemblyTeamMember[]
+}
+
+model AssemblyTeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  name      String
+  /// Calendar invites go here.
+  email     String
+  phone     String   @default("")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team        AssemblyTeam             @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  assignments AssemblyTeamAssignment[]
+
+  @@index([teamId])
+}
+
+/// Team member ticked on an assembly event.
+model AssemblyTeamAssignment {
+  assemblyId String
+  memberId   String
+  createdAt  DateTime @default(now())
+
+  assembly Assembly           @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  member   AssemblyTeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([assemblyId, memberId])
+  @@index([memberId])
+}
+
 /// Per-partner mute for assembly partner email notifications. No row = follow
 /// the central NotificationEventSetting; enabled = false = muted for that partner.
 model PartnerNotificationPreference {
@@ -681,6 +723,7 @@ model Assembly {
   // App-only (not written to the sheet)
   source          AssemblySource       @default(SHEET_IMPORTED)
   eventType       AssemblyEventType    @default(ASSEMBLY)
+  /// Legacy single-value team flag; the app now uses teamAssignments and no longer writes it.
   internalTeam    AssemblyInternalTeam @default(NO)
   clientEmail     String?
   clientPhone     String?
@@ -699,9 +742,15 @@ model Assembly {
   comments        String?
   issueCategories String[]
 
-  installPartner AssemblyPartner?          @relation(fields: [installPartnerId], references: [id], onDelete: SetNull)
-  linkedDeal     Deal?                     @relation(fields: [linkedDealId], references: [dealId], onDelete: SetNull)
-  submissions    QuestionnaireSubmission[]
+  /// Google Calendar mirror (Operations-UK) for internal-team events. App-only.
+  googleCalendarEventId   String?
+  googleCalendarSyncedAt  DateTime?
+  googleCalendarSyncError String?
+
+  installPartner  AssemblyPartner?          @relation(fields: [installPartnerId], references: [id], onDelete: SetNull)
+  linkedDeal      Deal?                     @relation(fields: [linkedDealId], references: [dealId], onDelete: SetNull)
+  submissions     QuestionnaireSubmission[]
+  teamAssignments AssemblyTeamAssignment[]
 
   @@index([installPartnerId])
   @@index([assemblyDate])
