@@ -428,3 +428,13 @@ copy, so existing sections are unchanged. Apply
 Compatibility: apply the SQL before releasing any consumer on a client that includes these
 fields. Prisma selects every scalar column of a model by default, so a client that knows
 the columns fails on a database without them. Only Assembly reads these models.
+
+## Assembly visit scope
+
+`Assembly.visitBooths` and `Assembly.visitContacts` are nullable jsonb columns for a
+follow-up visit (repair, aftercare, moving service, info). They record the booths and
+site people for that job, copied from the linked sale as a starting point and then
+edited on the assembly. Null means the assembly still shows the sale. The sales deal
+is not updated. Apply `scripts/assembly-visit-scope.sql` (two idempotent
+`ADD COLUMN IF NOT EXISTS`, no backfill) before a consumer that selects the columns.
+Rollback is `DROP COLUMN` of both; existing rows lose only the visit override.
