@@ -747,6 +747,13 @@ model Assembly {
   googleCalendarSyncedAt  DateTime?
   googleCalendarSyncError String?
 
+  /// Booths this follow-up visit covers. Null means the linked sale's booths.
+  /// Shape: [{ "name": "Soho", "quantity": 1 }]. App-only; never written to the sheet.
+  visitBooths   Json?
+  /// Site contacts for this follow-up visit. Null means the linked sale's contacts.
+  /// Shape: [{ "name", "email", "phone", "kind", "role" }]. App-only.
+  visitContacts Json?
+
   installPartner  AssemblyPartner?          @relation(fields: [installPartnerId], references: [id], onDelete: SetNull)
   linkedDeal      Deal?                     @relation(fields: [linkedDealId], references: [dealId], onDelete: SetNull)
   submissions     QuestionnaireSubmission[]
