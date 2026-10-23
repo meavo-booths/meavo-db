@@ -573,6 +573,7 @@ enum QuestionnaireLocale {
   IT
   CS
   NL
+  PT
 }
 
 enum TranslationStatus {
