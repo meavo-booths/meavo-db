@@ -666,6 +666,7 @@ model AssemblyTeamMember {
 
   team        AssemblyTeam             @relation(fields: [teamId], references: [id], onDelete: Restrict)
   assignments AssemblyTeamAssignment[]
+  submissions QuestionnaireSubmission[]
 
   @@index([teamId])
 }
@@ -852,22 +853,30 @@ model QuestionTranslation {
   @@id([questionId, locale])
 }
 
+/// Partner rows set partnerId. LAT crew rows set memberId and leave partnerId null.
+/// One crew row per job is enforced by QuestionnaireSubmission_crew_assembly_key
+/// in scripts/questionnaire-submission-lat-member.sql. Prisma's unique allows multiple null partner ids.
 model QuestionnaireSubmission {
   id          String           @id @default(cuid())
   assemblyId  String
-  partnerId   String
+  /// Set for an external partner submission. Null for a LAT crew submission.
+  partnerId   String?
+  /// Set for a LAT crew submission started from the calendar. Null for a partner submission.
+  memberId    String?
   status      SubmissionStatus @default(NOT_STARTED)
   submittedAt DateTime?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  assembly Assembly          @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
-  partner  AssemblyPartner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  assembly Assembly            @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  partner  AssemblyPartner?    @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  member   AssemblyTeamMember? @relation(fields: [memberId], references: [id], onDelete: Restrict)
   answers  QuestionAnswer[]
   photos   SubmissionPhoto[]
 
   @@unique([assemblyId, partnerId])
   @@index([partnerId])
+  @@index([memberId])
 }
 
 model QuestionAnswer {
