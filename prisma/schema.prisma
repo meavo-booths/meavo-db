@@ -109,6 +109,10 @@ model User {
   featureRequestVotes     FeatureRequestVote[]
 
   stockPartnersCreated    StockPartner[]       @relation("StockPartnerCreator")
+
+  factoryPanelScrapReports     FactoryPanelScrapReport[] @relation("FactoryPanelScrapReporter")
+  factoryScrapReportsResolved  FactoryPanelScrapReport[] @relation("FactoryScrapReportResolver")
+  factoryStationIssuesResolved FactoryStationIssue[]     @relation("FactoryStationIssueResolver")
 }
 
 model Account {
@@ -3273,6 +3277,8 @@ model FactoryStation {
   cncMachines       FactoryCncMachineMap[]
   cncDailySummaries FactoryCncDailySummary[]
   taskOverrides     FactoryScheduleTaskOverride[]
+  panelScrapReports FactoryPanelScrapReport[]
+  stationIssues     FactoryStationIssue[]
 }
 
 model FactoryBoothModel {
@@ -3288,6 +3294,7 @@ model FactoryBoothModel {
   productionBatches FactoryProductionBatch[]
   planningBatches   FactoryPlanningBatch[]
   planningBooths    FactoryPlanningBooth[]
+  panelScrapReports FactoryPanelScrapReport[]
 }
 
 /// Elements (parts).
@@ -3304,6 +3311,8 @@ model FactoryElement {
   workSessions     FactoryWorkSession[]
   quotas           FactoryQuota[]
   taskOverrides    FactoryScheduleTaskOverride[]
+  panelScrapReports FactoryPanelScrapReport[]
+  stationIssues     FactoryStationIssue[]
 }
 
 /// BOM: which station produces which element per booth model, incl. the
@@ -3340,6 +3349,8 @@ model FactoryColor {
   workItems        FactoryStationWorkItem[]
   productionEvents FactoryProductionEvent[]
   workSessions     FactoryWorkSession[]
+  panelScrapReports FactoryPanelScrapReport[]
+  stationIssues     FactoryStationIssue[]
 }
 
 /// Booth options (Privacy Foil, etc.)
@@ -3372,6 +3383,8 @@ model FactoryProductionBatch {
   workSessions     FactoryWorkSession[]
   quotas           FactoryQuota[]
   taskOverrides    FactoryScheduleTaskOverride[]
+  panelScrapReports FactoryPanelScrapReport[]
+  stationIssues     FactoryStationIssue[]
 
   @@index([status])
 }
@@ -3476,7 +3489,8 @@ model FactoryProductionEvent {
   element     FactoryElement              @relation(fields: [elementId], references: [id])
   color       FactoryColor?               @relation(fields: [colorId], references: [id])
   boothUnit   FactoryProductionBoothUnit? @relation(fields: [boothUnitId], references: [id])
-  workSession FactoryWorkSession?         @relation(fields: [workSessionId], references: [id])
+  workSession      FactoryWorkSession?         @relation(fields: [workSessionId], references: [id])
+  kioskScrapReport FactoryPanelScrapReport?
 
   @@index([stationId, recordedAt(sort: Desc)])
   @@index([batchId])
@@ -3542,7 +3556,8 @@ model FactoryDevice {
   lastSeenAt  DateTime?
   createdAt   DateTime  @default(now())
 
-  station FactoryStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  station       FactoryStation        @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  stationIssues FactoryStationIssue[]
 }
 
 model FactoryCncMachineMap {
@@ -3703,6 +3718,118 @@ model FactoryPlanningMonth {
 
   @@unique([siteId, year, month])
   @@index([year, month])
+}
+
+
+/// Process station where a panel was scrapped (not a kiosk FactoryStation code).
+enum FactoryScrapProcessStation {
+  package
+  center
+  edge
+  sand
+  oil
+  glass
+  assembly
+}
+
+/// Where a panel-scrap report was recorded.
+enum FactoryScrapReportSource {
+  admin
+  kiosk
+}
+
+/// Panel scrap case. Admin Бракуване and kiosk Брак taps share this table.
+model FactoryPanelScrapReport {
+  id                String                      @id @default(cuid())
+  batchId           String
+  boothModelId      String
+  colorId           String
+  elementId         String
+  processStation    FactoryScrapProcessStation?
+  qty               Int                         @default(1)
+  notes             String?
+  protocolNumber    Int?                        @unique
+  pdfStorageKey     String?
+  recordedByUserId  String?
+  source            FactoryScrapReportSource    @default(admin)
+  stationId         String?
+  productionEventId String?                     @unique
+  crewWorkerId1     String?
+  crewWorkerId2     String?
+  resolvedAt        DateTime?
+  resolvedByUserId  String?
+  resolutionNote    String?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+
+  batch           FactoryProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  boothModel      FactoryBoothModel      @relation(fields: [boothModelId], references: [id])
+  color           FactoryColor           @relation(fields: [colorId], references: [id])
+  element         FactoryElement         @relation(fields: [elementId], references: [id])
+  recordedByUser  User?                  @relation("FactoryPanelScrapReporter", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  station         FactoryStation?        @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  productionEvent FactoryProductionEvent? @relation(fields: [productionEventId], references: [id], onDelete: SetNull)
+  resolvedBy      User?                  @relation("FactoryScrapReportResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  photos          FactoryPanelScrapPhoto[]
+
+  @@index([batchId, createdAt(sort: Desc)])
+  @@index([recordedByUserId, createdAt(sort: Desc)])
+  @@index([processStation])
+  @@index([resolvedAt, createdAt])
+  @@index([stationId])
+}
+
+model FactoryPanelScrapPhoto {
+  id         String   @id @default(cuid())
+  reportId   String
+  storageKey String
+  fileName   String?
+  mimeType   String
+  sizeBytes  Int
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  report FactoryPanelScrapReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+/// Why a kiosk reported a non-scrap problem.
+enum FactoryStationIssueType {
+  missing_part
+  wrong_holes
+  other
+}
+
+/// Floor problem report from a kiosk (Друг проблем). Closed from График.
+model FactoryStationIssue {
+  id               String                 @id @default(cuid())
+  clientIssueId    String                 @unique
+  stationId        String
+  deviceId         String?
+  batchId          String?
+  elementId        String?
+  colorId          String?
+  processStep      String?
+  type             FactoryStationIssueType
+  details          String?
+  crewWorkerId1    String?
+  crewWorkerId2    String?
+  reportedAt       DateTime
+  createdAt        DateTime               @default(now())
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  resolutionNote   String?
+
+  station    FactoryStation          @relation(fields: [stationId], references: [id])
+  device     FactoryDevice?          @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  batch      FactoryProductionBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  element    FactoryElement?         @relation(fields: [elementId], references: [id], onDelete: SetNull)
+  color      FactoryColor?           @relation(fields: [colorId], references: [id], onDelete: SetNull)
+  resolvedBy User?                   @relation("FactoryStationIssueResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([resolvedAt, reportedAt])
+  @@index([stationId])
 }
 
 // ---- RP spare parts / panels (owner: rp) ----
