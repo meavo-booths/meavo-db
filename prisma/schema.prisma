@@ -870,6 +870,8 @@ model QuestionnaireSubmission {
   memberId    String?
   status      SubmissionStatus @default(NOT_STARTED)
   submittedAt DateTime?
+  /// Optional free-text notes the crew or partner adds at the end of any questionnaire.
+  notes       String           @default("")
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
