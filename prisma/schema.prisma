@@ -3738,6 +3738,13 @@ enum FactoryScrapReportSource {
   kiosk
 }
 
+/// Supervisor decision on a scrap case. Kiosk signals start pending.
+enum FactoryScrapReportStatus {
+  pending
+  approved
+  rejected
+}
+
 /// Panel scrap case. Admin Бракуване and kiosk Брак taps share this table.
 model FactoryPanelScrapReport {
   id                String                      @id @default(cuid())
@@ -3752,6 +3759,7 @@ model FactoryPanelScrapReport {
   pdfStorageKey     String?
   recordedByUserId  String?
   source            FactoryScrapReportSource    @default(admin)
+  status            FactoryScrapReportStatus    @default(approved)
   stationId         String?
   productionEventId String?                     @unique
   crewWorkerId1     String?
@@ -3777,6 +3785,15 @@ model FactoryPanelScrapReport {
   @@index([processStation])
   @@index([resolvedAt, createdAt])
   @@index([stationId])
+  @@index([batchId, status])
+}
+
+/// Factory-wide admin settings (Настройки). Key/value; missing keys use app defaults.
+model FactorySetting {
+  key             String   @id
+  value           Json
+  updatedByUserId String?
+  updatedAt       DateTime @updatedAt
 }
 
 model FactoryPanelScrapPhoto {
