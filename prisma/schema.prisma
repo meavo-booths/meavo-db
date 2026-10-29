@@ -635,6 +635,8 @@ model AssemblyPartner {
   name       String   @unique
   slug       String   @unique
   email      String?
+  /// Contact phone shown to staff on the Partners page. Optional.
+  phone      String?
   codeHash   String?
   isActive   Boolean  @default(true)
   isInternal Boolean  @default(false)
