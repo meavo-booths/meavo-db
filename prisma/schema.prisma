@@ -1797,6 +1797,12 @@ model BoothUnit {
   finishDetails String          @default("")
   location      String          @default("")
   status        BoothUnitStatus @default(PLANNED)
+  /// Written by Inventory only (scripts/add-booth-unit-inventory-link.sql): the
+  /// physical InventoryUnit allocated to this demand row, its serial, and when
+  /// status/location were last synced. Null until an allocation is made.
+  inventoryUnitId   String?   @unique
+  serialCode        String?
+  inventorySyncedAt DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -4776,7 +4782,21 @@ enum InventoryDemandState {
 
 enum InventoryAllocationKind {
   QUOTE_HOLD
+  /// Automatic reservation for a won deal that is not yet paid; expires within 7 days.
+  DEAL_HOLD
   COMMITTED
+}
+
+/// MANUAL rows are confirmed at creation; AUTOMATIC rows stay pending
+/// (confirmedAt null) until Ops/Product confirm or swap them.
+enum InventoryAllocationOrigin {
+  MANUAL
+  AUTOMATIC
+}
+
+enum InventoryExportDestination {
+  WAREHOUSE
+  DIRECT
 }
 
 enum InventoryAllocationStatus {
@@ -4845,6 +4865,7 @@ model InventoryWarehouse {
   incomingTransfers InventoryTransfer[]             @relation("InventoryTransferDestination")
   outgoingItems     InventoryTransferItem[]         @relation("InventoryTransferItemOrigin")
   incomingItems     InventoryTransferItem[]         @relation("InventoryTransferItemDestination")
+  exportLines       InventoryExportLine[]
 
   @@index([kind, active])
 }
@@ -4956,6 +4977,8 @@ model InventoryCatalogMapping {
   family         BoothProductFamily?
   finishId       String?
   recipeRevision String?
+  /// Uppercase ISO 3166-1 alpha-2 code for sourceKind "market" (Sales Deal.market → delivery country).
+  countryCode    String?
   metadata       Json?
   reviewedAt     DateTime?
   createdAt      DateTime            @default(now())
@@ -5014,6 +5037,7 @@ model InventoryUnit {
   transferItems    InventoryTransferItem[]
   preparationTasks InventoryPreparationTask[]
   auditEvents      InventoryAuditEvent[]
+  exportLines      InventoryExportLine[]
 
   @@unique([sourceSystem, sourceId])
   @@index([family, finishId, voltage, status])
@@ -5064,6 +5088,16 @@ model InventoryDemand {
   sourceVersion          BigInt               @default(0)
   reservationRequestedAt DateTime?
   reservationRequestedById String?
+  /// Inventory's payment gate: PAID/PARTIALLY_PAID or NET_* terms. Mirrors below are for display/audit.
+  paymentCleared         Boolean              @default(false)
+  paymentStatus          PaymentStatus?
+  paymentTerms           PaymentTerms?
+  paymentCheckedAt       DateTime?
+  /// Mirrors of Sales Deal.deliveryType / Deal.assemblyAddress at the last sync.
+  deliveryType           DeliveryType?
+  deliveryAddress        String?
+  /// Set by Ops/Product in Inventory, never overwritten by sync: ship to the customer, not a warehouse.
+  shipDirect             Boolean              @default(false)
   metadata               Json?
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
@@ -5071,11 +5105,13 @@ model InventoryDemand {
   lines                  InventoryDemandLine[]
   suggestions            InventorySuggestion[]
   auditEvents            InventoryAuditEvent[]
+  exportLines            InventoryExportLine[]
 
   @@unique([sourceSystem, sourceId])
   @@index([dealId])
   @@index([quoteId])
   @@index([state, kind])
+  @@index([state, paymentCleared])
   @@index([preferredWarehouseId])
 }
 
@@ -5126,9 +5162,11 @@ model InventoryAllocation {
   slot            Int                       @default(1)
   kind            InventoryAllocationKind
   status          InventoryAllocationStatus @default(ACTIVE)
+  origin          InventoryAllocationOrigin @default(MANUAL)
   reservedAt      DateTime                  @default(now())
   expiresAt       DateTime?
-  confirmedAt     DateTime                  @default(now())
+  /// Null while an AUTOMATIC allocation awaits Ops/Product confirmation; SQL requires it for MANUAL rows.
+  confirmedAt     DateTime?
   confirmedById   String?
   requestedById   String?
   protectedByOps  Boolean                   @default(false)
@@ -5143,6 +5181,7 @@ model InventoryAllocation {
   demandLine      InventoryDemandLine      @relation(fields: [demandLineId], references: [id], onDelete: Restrict)
   confirmedBy     User?                    @relation("InventoryAllocationConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
   preparationTasks InventoryPreparationTask[]
+  exportLine      InventoryExportLine?
 
   // SQL partial indexes enforce one ACTIVE allocation per unit and demand slot.
   // Expired ACTIVE holds must be expired in the same transaction before claim.
@@ -5150,6 +5189,7 @@ model InventoryAllocation {
   @@index([unitId, status])
   @@index([demandLineId, status])
   @@index([status, expiresAt])
+  @@index([status, confirmedAt])
   @@index([confirmedById])
 }
 
@@ -5178,6 +5218,7 @@ model InventoryTransfer {
   originWarehouse        InventoryWarehouse @relation("InventoryTransferOrigin", fields: [originWarehouseId], references: [id], onDelete: Restrict)
   destinationWarehouse   InventoryWarehouse @relation("InventoryTransferDestination", fields: [destinationWarehouseId], references: [id], onDelete: Restrict)
   items                  InventoryTransferItem[]
+  exportLines            InventoryExportLine[]
 
   @@unique([id, originWarehouseId, destinationWarehouseId])
   @@index([originWarehouseId, status])
@@ -5280,4 +5321,45 @@ model InventoryIntegrationEvent {
 
   @@unique([sourceSystem, sourceEventId])
   @@index([status, createdAt])
+}
+
+/// One row per allocated booth in the weekly export list (replaces the Ops
+/// sheet "Износ" tab). Created lazily on the first typed value; loadedAt marks
+/// dispatch. The pallet number lives in InventoryPalletContent, not here.
+/// SQL-only checks: scripts/add-inventory-export-lines.sql.
+model InventoryExportLine {
+  id                     String                      @id @default(cuid())
+  allocationId           String                      @unique
+  unitId                 String
+  demandId               String
+  /// ISO week such as 2026-W45; typed in, defaulted on first save.
+  exportWeek             String?
+  destinationKind        InventoryExportDestination?
+  destinationWarehouseId String?
+  /// Address snapshot for DIRECT destinations, frozen when loaded.
+  destinationLabel       String                      @default("")
+  loadedAt               DateTime?
+  loadedById             String?
+  transferId             String?
+  labelsPrintedAt        DateTime?
+  spareParts             String                      @default("")
+  workshopNote           String                      @default("")
+  createdById            String?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+
+  allocation           InventoryAllocation @relation(fields: [allocationId, unitId], references: [id, unitId], onDelete: Restrict)
+  unit                 InventoryUnit       @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  demand               InventoryDemand     @relation(fields: [demandId], references: [id], onDelete: Restrict)
+  destinationWarehouse InventoryWarehouse? @relation(fields: [destinationWarehouseId], references: [id], onDelete: Restrict)
+  transfer             InventoryTransfer?  @relation(fields: [transferId], references: [id], onDelete: Restrict)
+
+  // allocationId alone is unique; the pair exists for the composite one-to-one relation.
+  @@unique([allocationId, unitId])
+  @@index([demandId])
+  @@index([unitId])
+  @@index([exportWeek])
+  @@index([loadedAt])
+  @@index([destinationWarehouseId])
+  @@index([transferId])
 }

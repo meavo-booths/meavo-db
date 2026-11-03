@@ -2,8 +2,10 @@
 
 Inventory (`inventory.meavo.app`) owns the physical stock register. The canonical
 schema remains here in `meavo-db`; consumers only generate Prisma clients.
-Schema and SQL are additive. They do not modify Sales `BoothUnit`, Factory
-production models, MRP recipes, gateway identity, existing stock, or serials.
+Schema and SQL are additive. Apart from three nullable link columns on Sales
+`BoothUnit` that only Inventory writes (see "BoothUnit write-back"), they do not
+modify Sales, Factory production models, MRP recipes, gateway identity, existing
+stock, or serials.
 
 ## Ownership and identities
 
@@ -13,11 +15,13 @@ production models, MRP recipes, gateway identity, existing stock, or serials.
 | Warehouses | `InventoryWarehouse` is LOCAL or CENTRAL; `InventoryWarehouseServiceRule` matches country, optional region and postcode prefix and records priority/lead time. A deal's preferred warehouse is an override of ranking, not electrical eligibility. |
 | Physical placement | Optional `InventorySpot`, named `InventoryPallet`, and `InventoryPalletContent` support mixed pallets and booths split over several pallets. A package has a durable `(unitId, packageKey)` identity. Composite FKs keep a pallet's spot in its actual warehouse. |
 | Production origin | `InventoryFactory` and `InventoryBatch` retain factory and manually entered batch number. The batch/factory composite FK prevents a booth claiming the wrong factory. Source keys link upstream records without destructive cascades. |
-| Compatibility | `BoothProductFamily` and `BoothUnitStatus` reuse Sales' canonical enums. `InventoryFinish` represents an exact reviewed finish, including custom specifications. `InventoryCatalogMapping` links source model/finish IDs and recipe revisions explicitly. |
+| Compatibility | `BoothProductFamily` and `BoothUnitStatus` reuse Sales' canonical enums. `InventoryFinish` represents an exact reviewed finish, including custom specifications. `InventoryCatalogMapping` links source model/finish IDs and recipe revisions explicitly; with `sourceKind="market"` it maps a Sales `Deal.market` value to a delivery `countryCode` so automatic allocation can pick a warehouse. Multi-country markets stay unmapped. |
 | Physical booth | `InventoryUnit` exists before serial assignment or a customer. Production/transit/receipt update this same record. Factory source keys must be permanent handover keys, never regenerated panel/production-unit IDs. |
-| Commercial demand | `InventoryDemand` mirrors a stable quote/deal identity and source version; `InventoryDemandLine` stores quantity and compatibility. Slot `1..quantity` identifies each requested booth. Neither has a cascading FK to Sales. Retire removed lines with `active=false`. |
+| Commercial demand | `InventoryDemand` mirrors a stable quote/deal identity and source version; `InventoryDemandLine` stores quantity and compatibility. Slot `1..quantity` identifies each requested booth. Neither has a cascading FK to Sales. Retire removed lines with `active=false`. The demand also mirrors the deal's `paymentStatus`, `paymentTerms`, `deliveryType` and `deliveryAddress` at the last sync and stores Inventory's computed `paymentCleared` gate; `shipDirect` is set in Inventory and never overwritten by sync. |
 | Advisory matching | `InventorySuggestion` stores demand version, proposed unit versions, explanations/preparation, and shortages as a JSON snapshot. Saving a suggestion never locks stock, allocates a booth, or issues a serial. |
-| Allocations | `InventoryAllocation` connects one booth to one demand-line slot. Only ACTIVE rows consume stock; SQL guarantees one ACTIVE row per booth and per demand-line slot. Every confirmed change is audited. |
+| Allocations | `InventoryAllocation` connects one booth to one demand-line slot. Only ACTIVE rows consume stock; SQL guarantees one ACTIVE row per booth and per demand-line slot. `kind` is QUOTE_HOLD (explicit rep request), DEAL_HOLD (automatic, won but unpaid, expires within seven days) or COMMITTED (paid, no expiry). `origin` AUTOMATIC rows are pending while `confirmedAt` is null; MANUAL rows are confirmed at creation (SQL check). Every confirmed change is audited. |
+| Export lines | `InventoryExportLine` is one row per allocation on the weekly export list: typed export week, workshop note, spare parts, labels-printed and loaded timestamps, and the frozen destination (serving warehouse or direct delivery address). A composite FK to `(allocationId, unitId)` keeps the line on its allocation's booth. The pallet number is `InventoryPalletContent`, not a column here. |
+| Sales booth unit link | `BoothUnit.inventoryUnitId` (unique), `serialCode` and `inventorySyncedAt` are written only by Inventory when an allocation links a physical booth to that Sales demand row; Sales shows them read-only. No FK, so Sales works without the Inventory tables. |
 | Serials | `InventorySerialSequence` has one `global` row whose `nextNumber` starts at 40000. Unit serial number and full serial are independently unique. Legacy prefixes/numbers are retained; new Workstation serials use WS. |
 | Transfers | `InventoryTransfer` manifests and `InventoryTransferItem` receipt quantities distinguish dispatch from partial/complete receipt. A transfer item targets a complete unpackaged booth or an exact package, never both. |
 | Preparation | `InventoryPreparationTask` records socket fitting/checking/picking. Composite FK ensures the task's allocation belongs to the same physical unit. Completed preparation stays with that booth. |
@@ -62,6 +66,51 @@ Rollback keeps the columns and recorded amounts intact while reverting consumer
 code. Production application and package release require the same approval as the
 rest of the Inventory schema.
 
+## Automatic allocation and product confirmation
+
+Winning a deal no longer merely suggests stock. The Inventory worker reserves
+specific booths for a WON demand automatically, using the same matching rules as
+suggestions, and those rows are real allocations that consume stock: `kind`
+DEAL_HOLD with a seven-day `expiresAt` while the deal is not paid, or COMMITTED
+with `expiresAt=null` once `paymentCleared` is true (`paymentStatus` PAID or
+PARTIALLY_PAID, or NET_* terms). They are created with `origin=AUTOMATIC` and
+`confirmedAt=null`, which means **pending Ops/Product confirmation**, and carry
+no serial. Confirmation (or an override swap) by Ops/Product sets `confirmedAt`
+and issues the serial; Sales users cannot confirm, swap or release won-deal
+allocations. A live quote hold is converted in place on win (keeping its
+original expiry until payment clears). An expired DEAL_HOLD is released; when
+payment later arrives the worker reserves again from whatever is available.
+Suggestions remain advisory snapshots and still hold nothing.
+
+Apply `scripts/add-inventory-v2-allocation-rules.sql` after the base and cost
+scripts. It adds the enum value and origin column, makes `confirmedAt` nullable,
+swaps the hold-expiry check for one that covers DEAL_HOLD, adds the demand
+payment/delivery columns and the mapping `countryCode`. Existing rows keep their
+`confirmedAt` and become MANUAL, so nothing becomes pending retroactively.
+
+## Export lines
+
+`scripts/add-inventory-export-lines.sql` adds `InventoryExportLine`, the weekly
+loading list that replaces the Ops sheet's export tab. Lines are created lazily
+by the Inventory service when Ops type a value; `loadedAt` marks dispatch and
+freezes the destination (a `WAREHOUSE` row names the serving warehouse and,
+once dispatched, the transfer; a `DIRECT` row keeps the address label). SQL
+checks require a destination on loaded rows, a warehouse on WAREHOUSE rows and
+an ISO week shape such as `2026-W45`. Release or swap of an unloaded
+allocation deletes its line in the same transaction; loaded lines are history.
+
+## BoothUnit write-back
+
+`scripts/add-booth-unit-inventory-link.sql` adds `inventoryUnitId` (unique),
+`serialCode` and `inventorySyncedAt` to Sales `BoothUnit`. The Inventory
+service writes them, together with `status` and `location`, whenever an
+allocation or the allocated booth's status changes, in the same transaction.
+It maps a demand-line slot to the n-th Sales booth unit of the same family and
+finish, keeps an existing link in place, and clears stale links before setting
+new ones so the unique index never fails during a swap. It never touches the
+`Deal` row, so `Deal.updatedAt` and source versions stay stable. Rows without an
+active allocation are reset to PLANNED with no link.
+
 ## Required transaction behavior
 
 The schema supports these rules; the Inventory service must enforce the listed
@@ -86,10 +135,18 @@ cross-row/business rules inside serializable transactions with conflict retries.
    to serialize expiry versus won-deal confirmation. Cleanup jobs are optional
    housekeeping, never the correctness boundary.
 5. A quote hold requires an explicit rep request and human confirmation. SQL
-   limits `expiresAt` to at most seven days after `reservedAt`; both timestamps
-   stay unchanged on quote saves or overrides. Confirming a won deal explicitly
-   converts a live hold into COMMITTED with `expiresAt=null`; merely winning or
-   refreshing suggestions does not convert it. An expired hold cannot be revived.
+   limits `expiresAt` of QUOTE_HOLD and DEAL_HOLD rows to at most seven days
+   after `reservedAt`; both timestamps stay unchanged on quote saves or
+   overrides. Winning converts a live quote hold in place: to DEAL_HOLD keeping
+   its original expiry while unpaid, or to COMMITTED with `expiresAt=null` once
+   payment clears. Refreshing suggestions converts nothing. An expired hold
+   cannot be revived; a later payment reserves afresh.
+11. Automatic allocation runs only for WON demands under a service actor that no
+    HTTP caller can obtain. It rechecks the Sales revision, candidate units and
+    specifications exactly like confirmation, creates `origin=AUTOMATIC` rows
+    with `confirmedAt=null` and no serial, and is idempotent on replay. Only
+    Ops/Product confirm (issuing the serial) or swap pending rows; Sales
+    callers are refused on won-deal allocations.
 6. Serialize number assignment with the global sequence row in the same
    allocation transaction. Lazily create it at 40000, skip numbers already
    imported, advance with an atomic update/row lock, and stop at 99999. SQL allows
@@ -137,12 +194,17 @@ The producer queue is the sole exception to Inventory's write ownership.
 
 ## Application and rollout
 
-Apply `scripts/add-inventory-v1.sql` through the repository release policy, even
-if Prisma `db push` created the tables already. Prisma cannot express the partial
-ACTIVE-allocation indexes, quote expiry limit, serial bounds or quantity checks.
-The script is a single transaction, uses idempotent table/type/index/constraint
-creation, and contains no data seeds, existing-domain ALTERs or destructive DDL.
-It relies on existing `User`, `BoothProductFamily` and `BoothUnitStatus` objects.
+Apply the Inventory scripts in order, each twice, through the repository release
+policy, even if Prisma `db push` created the tables already:
+`add-inventory-v1.sql`, `add-inventory-unit-cost.sql`,
+`add-inventory-v2-allocation-rules.sql`, `add-inventory-export-lines.sql`,
+`add-booth-unit-inventory-link.sql`. Prisma cannot express the partial
+ACTIVE-allocation indexes, hold expiry limits, the pending-allocation rule,
+serial bounds or quantity checks. Each script is a single transaction, uses
+idempotent table/type/index/constraint creation, and contains no data seeds or
+destructive DDL; the only existing-domain ALTERs are the nullable `BoothUnit`
+link columns. They rely on existing `User`, `BoothProductFamily`,
+`BoothUnitStatus`, `PaymentStatus`, `PaymentTerms` and `DeliveryType` objects.
 
 Before application, inspect the actual target provider/project/database branch,
 compare its schema with the reviewed canonical schema, and verify non-production
@@ -193,3 +255,15 @@ clearing, and rejected 13 invalid amount/currency combinations including `NaN`,
 infinities, overflow, negative, unpaired, lower-case and malformed values. These
 isolated checks did not read or modify the running local preview or any external
 database.
+
+On 3 November 2026, after rebasing onto staging (`9e1979e`, 0.99.0), Prisma
+validation passed and a schema-to-schema diff from the previous commit listed
+exactly the objects in the three new scripts. A fresh in-memory PGlite database
+built from staging's schema accepted all five Inventory scripts twice in order.
+Behaviour checks: an automatic DEAL_HOLD pending for seven days and an automatic
+pending COMMITTED row were accepted; a DEAL_HOLD expiring after eight days and a
+MANUAL row without `confirmedAt` were rejected; an export line was accepted for
+its allocation's booth and rejected for another booth, a malformed week, a
+loaded row without destination and a WAREHOUSE row without warehouse, while a
+loaded DIRECT row was accepted; a lower-case market country was rejected and
+`GB` accepted. No external database was accessed.

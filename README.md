@@ -59,7 +59,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Task management | tasks | TaskWorkspace, TaskWorkspaceMember, TaskBoardColumn, Task, TaskAssignee, TaskExternalLink |
 | Feature requests | requests | FeatureRequest, FeatureRequestVote |
 | Partner stock | stock | StockPartner, StockPartnerVisit |
-| Physical booth inventory | inventory | InventoryAccess, InventoryWarehouse*, InventorySpot, InventoryPallet*, InventoryFactory, InventoryBatch, InventoryFinish, InventoryCatalogMapping, InventoryUnit, InventoryDemand*, InventorySuggestion, InventoryAllocation, InventorySerialSequence, InventoryTransfer*, InventoryPreparationTask, InventoryAuditEvent, InventoryOperation, InventoryIntegrationEvent |
+| Physical booth inventory | inventory | InventoryAccess, InventoryWarehouse*, InventorySpot, InventoryPallet*, InventoryFactory, InventoryBatch, InventoryFinish, InventoryCatalogMapping, InventoryUnit, InventoryDemand*, InventorySuggestion, InventoryAllocation, InventoryExportLine, InventorySerialSequence, InventoryTransfer*, InventoryPreparationTask, InventoryAuditEvent, InventoryOperation, InventoryIntegrationEvent; also writes `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` |
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.

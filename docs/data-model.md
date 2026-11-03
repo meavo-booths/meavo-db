@@ -24,7 +24,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Clock-In | clock | clock-in / time-tracking models (see `scripts/add-clock-tables.sql`) |
 | Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink` |
 | Feature requests | requests | `FeatureRequest`, `FeatureRequestVote`, `FeatureRequestAttachment` (`FeatureRequestType`, `FeatureRequestImportance`) |
-| Physical booth inventory | inventory | `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryTransfer*`, `InventoryIntegrationEvent` (full contract in [inventory-v1.md](inventory-v1.md)) |
+| Physical booth inventory | inventory | `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 
@@ -357,10 +357,15 @@ Several domains mirror rows to Google Sheets or queue side effects; the outbox/s
 ## Inventory V1
 
 The Inventory domain is additive and reuses the gateway `User` and Sales family/
-status enums. Apply [scripts/add-inventory-v1.sql](../scripts/add-inventory-v1.sql)
-through the normal environment review process. This is required even after
-`db push`: the active-allocation partial indexes, seven-day hold limit, package
-receipt checks and serial bounds are not expressible in the Prisma schema.
+status/payment enums. Apply its scripts in this order through the normal
+environment review process, each twice: [add-inventory-v1.sql](../scripts/add-inventory-v1.sql),
+[add-inventory-unit-cost.sql](../scripts/add-inventory-unit-cost.sql),
+[add-inventory-v2-allocation-rules.sql](../scripts/add-inventory-v2-allocation-rules.sql),
+[add-inventory-export-lines.sql](../scripts/add-inventory-export-lines.sql),
+[add-booth-unit-inventory-link.sql](../scripts/add-booth-unit-inventory-link.sql).
+This is required even after `db push`: the active-allocation partial indexes,
+hold expiry limits, pending-allocation rule, package receipt checks and serial
+bounds are not expressible in the Prisma schema.
 
 The [domain contract](inventory-v1.md) documents data ownership, transactions,
 integration identities, source-version reconciliation, migration and rollback.
