@@ -37,6 +37,31 @@ must update this summary only after checking every package: receiving one pallet
 does not move or complete all booths represented on it. Clear the summary when
 the unit spans locations; the package/pallet records explain where the parts are.
 
+## Booth inventory cost
+
+`InventoryUnit.costAmount` is the recorded inventory cost of that physical booth,
+stored as `Decimal(12,2)`. It is not the Sales quote price. `costCurrency` is its
+uppercase, three-letter ISO 4217 currency code. Both values are nullable and must
+be recorded or cleared together. A missing cost means **unrecorded**, whereas a
+recorded zero is valid and must remain distinguishable from missing information.
+There is no default cost or automatic valuation from a model, quote, or recipe.
+
+Apply `scripts/add-inventory-unit-cost.sql` after the base Inventory V1 script,
+including when Prisma has already added the columns. This separate, additive,
+transactional script leaves existing rows unvalued and can be replayed safely.
+SQL checks require paired fields, a nonnegative amount excluding numeric `NaN`,
+and an uppercase three-letter currency shape. The Inventory application must
+validate the selected currency against supported ISO 4217 codes and audit cost
+changes. Keep totals separated by currency unless an explicit exchange-rate
+policy is implemented; do not silently add amounts from different currencies.
+
+Review a schema-to-schema SQL diff, apply the script twice to an isolated local
+database, and exercise null, zero, positive, invalid currency, negative and
+unpaired values before rollout. Old consumers can ignore these nullable fields.
+Rollback keeps the columns and recorded amounts intact while reverting consumer
+code. Production application and package release require the same approval as the
+rest of the Inventory schema.
+
 ## Required transaction behavior
 
 The schema supports these rules; the Inventory service must enforce the listed
@@ -158,3 +183,13 @@ These checks exercised the SQL directly with synthetic fixtures. They do not
 prove the Inventory service's authorization, concurrent transaction retry logic,
 integration delivery, app flows, or any external/staging environment. Those
 require consumer verification before rollout. No external database was accessed.
+
+The subsequent booth-cost addition passed Prisma validation with an explicit
+dummy loopback URL. A schema-to-schema diff against the preceding feature commit
+contained only the two nullable `InventoryUnit` columns. A fresh, in-memory
+PGlite database accepted the separate cost script twice, preserved a pre-existing
+unit's null cost, accepted null/zero/positive/maximum values, allowed paired
+clearing, and rejected 13 invalid amount/currency combinations including `NaN`,
+infinities, overflow, negative, unpaired, lower-case and malformed values. These
+isolated checks did not read or modify the running local preview or any external
+database.

@@ -4974,6 +4974,10 @@ model InventoryUnit {
   /// Canonical installed socket code, e.g. GB/US/EU; null means not fitted.
   socketType            String?
   productVersion        String?
+  /// Recorded inventory cost, not the Sales quote price; null means unrecorded.
+  costAmount            Decimal?           @db.Decimal(12, 2)
+  /// Uppercase ISO 4217 code; must be present exactly when costAmount is present.
+  costCurrency          String?
   batchId               String?
   factoryId             String?
   status                BoothUnitStatus    @default(PLANNED)
