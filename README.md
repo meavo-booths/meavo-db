@@ -59,9 +59,17 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Task management | tasks | TaskWorkspace, TaskWorkspaceMember, TaskBoardColumn, Task, TaskAssignee, TaskExternalLink |
 | Feature requests | requests | FeatureRequest, FeatureRequestVote |
 | Partner stock | stock | StockPartner, StockPartnerVisit |
+| Physical booth inventory | inventory | InventoryAccess, InventoryWarehouse*, InventorySpot, InventoryPallet*, InventoryFactory, InventoryBatch, InventoryFinish, InventoryCatalogMapping, InventoryUnit, InventoryDemand*, InventorySuggestion, InventoryAllocation, InventoryExportLine, InventorySerialSequence, InventoryTransfer*, InventoryPreparationTask, InventoryAuditEvent, InventoryOperation, InventoryIntegrationEvent; also writes `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` |
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.
+
+Inventory uses the shared `BoothProductFamily` and `BoothUnitStatus` enums. Its
+physical `InventoryUnit` identities are independent of Sales `BoothUnit` demand
+and regenerated Factory production rows. Sales and Factory may enqueue their
+own `InventoryIntegrationEvent` rows transactionally; Inventory processes them
+and owns all other inventory writes. See [Inventory V1](docs/inventory-v1.md) for
+the schema contract and required SQL-only allocation/expiry constraints.
 
 ## Documentation
 
