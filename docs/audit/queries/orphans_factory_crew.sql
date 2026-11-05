@@ -1,0 +1,1 @@
+SELECT count(*) AS events, count("crewWorkerId1") AS with_crew1, count(*) FILTER (WHERE "crewWorkerId1" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "FactoryWorker" w WHERE w.id::text = e."crewWorkerId1")) AS crew1_orphans FROM "FactoryProductionEvent" e

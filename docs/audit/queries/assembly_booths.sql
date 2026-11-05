@@ -1,0 +1,1 @@
+SELECT count(*) AS assemblies, count(*) FILTER (WHERE "linkedDealId" IS NOT NULL) AS linked, count(*) FILTER (WHERE "visitBooths" IS NOT NULL) AS with_visit_booths, count(*) FILTER (WHERE "assemblyDate" >= now() - interval '365 days') AS last_12_months FROM "Assembly"

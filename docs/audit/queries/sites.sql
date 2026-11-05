@@ -1,0 +1,1 @@
+SELECT 'FactorySite' AS source, code, "nameBg" AS name FROM "FactorySite" UNION ALL SELECT 'MrpWarehouse', code, name FROM "MrpWarehouse" UNION ALL SELECT 'InventoryFactory', code, name FROM "InventoryFactory" UNION ALL SELECT 'InventoryWarehouse', code, name || ' (' || kind::text || ')' FROM "InventoryWarehouse" ORDER BY 1,2

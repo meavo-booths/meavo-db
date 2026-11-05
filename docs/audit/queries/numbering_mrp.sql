@@ -1,0 +1,1 @@
+SELECT min((substring("boothIdText" from '([0-9]{5})'))::int) AS min_id, max((substring("boothIdText" from '([0-9]{5})'))::int) AS max_id, count(*) AS units, count(*) FILTER (WHERE substring("boothIdText" from '([0-9]{5})') IS NULL) AS no_five_digit_id, count(DISTINCT substring("boothIdText" from '([0-9]{5})')) AS distinct_ids FROM "MrpBatchUnit"
