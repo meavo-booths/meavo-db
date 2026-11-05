@@ -1,0 +1,1 @@
+SELECT count(*) AS booth_units, count(*) FILTER (WHERE b."inventoryUnitId" IS NOT NULL) AS linked, count(*) FILTER (WHERE b."inventoryUnitId" IS NOT NULL AND u.id IS NULL) AS orphan_links FROM "BoothUnit" b LEFT JOIN "InventoryUnit" u ON u.id = b."inventoryUnitId"

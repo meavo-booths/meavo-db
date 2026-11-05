@@ -1,0 +1,1 @@
+SELECT (SELECT count(*) FROM "DealLabel") AS deal_labels, (SELECT count(*) FROM "ClientLabel") AS client_labels, (SELECT count(*) FROM "DealLabel" d WHERE EXISTS (SELECT 1 FROM "ClientLabel" c WHERE lower(c.name) = lower(d.name))) AS same_name

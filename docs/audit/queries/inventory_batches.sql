@@ -1,0 +1,1 @@
+SELECT b."batchNumber", f.code AS factory, (SELECT count(*) FROM "InventoryUnit" u WHERE u."batchId" = b.id) AS units, EXISTS (SELECT 1 FROM "FactoryProductionBatch" p WHERE p."batchCode" = b."batchNumber") AS in_factory_production FROM "InventoryBatch" b JOIN "InventoryFactory" f ON f.id = b."factoryId" ORDER BY 1

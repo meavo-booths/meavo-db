@@ -1,0 +1,232 @@
+model,table,schema_line,section,owner,pk,fk_count,fk_targets,soft_keys,unique_constraints,indexes,in_canonical_schema,in_production,prod_rows,prod_total_bytes
+User,User,42,Identity & access (owner: gateway),gateway,id,0,,slackUserId,0,0,True,True,64,81920
+Account,Account,122,Identity & access (owner: gateway),gateway,id,1,User,providerAccountId,1,0,True,True,33,327680
+Team,Team,141,Identity & access (owner: gateway),gateway,id,0,,,0,0,True,True,10,49152
+TeamSubgroup,TeamSubgroup,154,Identity & access (owner: gateway),gateway,id,1,Team,,2,0,True,True,5,65536
+TeamMember,TeamMember,168,Identity & access (owner: gateway),gateway,id,3,Team TeamSubgroup User,,1,1,True,True,64,98304
+GatewayUserImportReceipt,GatewayUserImportReceipt,185,Identity & access (owner: gateway),gateway,id,1,User,,0,1,True,True,1,49152
+ToolCard,ToolCard,197,Identity & access (owner: gateway),gateway,id,0,,iconKey linkedAppKey,1,0,True,True,12,49152
+ToolCardAccess,ToolCardAccess,214,Identity & access (owner: gateway),gateway,id,2,ToolCard User,,1,0,True,True,222,163840
+LoginThrottle,LoginThrottle,231,Identity & access (owner: gateway),gateway,key,0,,,0,0,True,True,18,32768
+CompanyProfile,CompanyProfile,244,HR & documents (owner: gateway),gateway,company,0,,,0,0,True,True,2,32768
+Employee,Employee,275,HR & documents (owner: gateway),gateway,id,1,User,,0,0,True,True,61,81920
+EmployeeSalaryHistory,EmployeeSalaryHistory,306,HR & documents (owner: gateway),gateway,id,2,Employee User,,0,1,True,True,72,81920
+EmployeeCommission,EmployeeCommission,321,HR & documents (owner: gateway),gateway,id,1,Employee,,1,1,True,True,0,65536
+EmployeeDocument,EmployeeDocument,335,HR & documents (owner: gateway),gateway,id,1,Employee,storageKey uploadedBy,0,1,True,True,58,98304
+DocumentTemplate,DocumentTemplate,350,HR & documents (owner: gateway),gateway,id,1,User,logoStorageKey,0,0,True,True,3,32768
+DocumentTemplateVersion,DocumentTemplateVersion,366,HR & documents (owner: gateway),gateway,id,2,DocumentTemplate User,,1,1,True,True,6,65536
+GeneratedDocument,GeneratedDocument,384,HR & documents (owner: gateway),gateway,id,3,DocumentTemplateVersion User,storageKey,0,2,True,True,6,98304
+SignatureRequest,SignatureRequest,405,HR & documents (owner: gateway),gateway,id,5,EmployeeDocument GeneratedDocument User,externalId signedDocumentKey,0,4,True,True,1,131072
+LibraryAsset,LibraryAsset,433,HR & documents (owner: gateway),gateway,id,1,User,storageKey,0,0,True,True,1,49152
+UsefulLink,UsefulLink,448,HR & documents (owner: gateway),gateway,id,1,User,iconKey,0,1,True,True,2,49152
+LibraryVideo,LibraryVideo,465,HR & documents (owner: gateway),gateway,id,1,User,,0,2,True,True,8,65536
+GatewaySheetRecord,GatewaySheetRecord,482,HR & documents (owner: gateway),gateway,id,0,,rowKey,0,5,True,True,2750,7471104
+PublicHoliday,PublicHoliday,518,Vacation tracking (owner: hols),hols,id,0,,,1,1,True,True,542,237568
+UserAllowance,UserAllowance,531,Vacation tracking (owner: hols),hols,id,1,User,,1,0,True,True,0,49152
+VacationRequest,VacationRequest,544,Vacation tracking (owner: hols),hols,id,2,User,,0,4,True,True,167,155648
+AssemblyPartner,AssemblyPartner,637,Assembly (owner: assembly),assembly,id,0,,,0,0,True,True,44,65536
+AssemblyTeam,AssemblyTeam,657,Assembly (owner: assembly),assembly,id,0,,,0,0,True,True,1,49152
+AssemblyTeamMember,AssemblyTeamMember,667,Assembly (owner: assembly),assembly,id,1,AssemblyTeam,,0,1,True,True,4,49152
+AssemblyTeamAssignment,AssemblyTeamAssignment,686,Assembly (owner: assembly),assembly,"@@id([assemblyId, memberId])",2,Assembly AssemblyTeamMember,,0,1,True,True,44,49152
+PartnerNotificationPreference,PartnerNotificationPreference,700,Assembly (owner: assembly),assembly,id,1,AssemblyPartner,,1,1,True,True,0,65536
+Assembly,Assembly,714,Assembly (owner: assembly),assembly,id,2,AssemblyPartner Deal,dealId googleCalendarEventId,0,4,True,True,1998,1703936
+Questionnaire,Questionnaire,780,Assembly (owner: assembly),assembly,id,0,,,0,0,True,True,5,32768
+QuestionnaireSection,QuestionnaireSection,795,Assembly (owner: assembly),assembly,id,1,Questionnaire,,0,1,True,True,20,49152
+Question,Question,815,Assembly (owner: assembly),assembly,id,3,Question Questionnaire QuestionnaireSection,,0,2,True,True,29,98304
+QuestionnaireSectionTranslation,QuestionnaireSectionTranslation,841,Assembly (owner: assembly),assembly,"@@id([sectionId, locale])",1,QuestionnaireSection,,0,0,True,True,140,90112
+QuestionTranslation,QuestionTranslation,855,Assembly (owner: assembly),assembly,"@@id([questionId, locale])",1,Question,,0,0,True,True,203,122880
+QuestionnaireSubmission,QuestionnaireSubmission,870,Assembly (owner: assembly),assembly,id,3,Assembly AssemblyPartner AssemblyTeamMember,,1,2,True,True,85,131072
+QuestionAnswer,QuestionAnswer,895,Assembly (owner: assembly),assembly,id,2,Question QuestionnaireSubmission,,1,0,True,True,355,229376
+SubmissionPhoto,SubmissionPhoto,909,Assembly (owner: assembly),assembly,id,2,QuestionnaireSection QuestionnaireSubmission,storageKey,0,2,True,True,239,163840
+SheetImportState,SheetImportState,925,Assembly (owner: assembly),assembly,id,0,,,0,0,True,True,2,65536
+Resource,Resource,957,Assembly (owner: assembly),assembly,id,0,,youtubeVideoId,0,1,True,True,61,106496
+ResourceFile,ResourceFile,976,Assembly (owner: assembly),assembly,id,1,Resource,storageKey,0,1,True,True,100,114688
+ResourceBoothModel,ResourceBoothModel,990,Assembly (owner: assembly),assembly,"@@id([resourceId, boothModel])",1,Resource,,0,0,True,True,201,90112
+ResourceCategory,ResourceCategory,999,Assembly (owner: assembly),assembly,"@@id([resourceId, category])",1,Resource,,0,0,True,True,64,32768
+Product,Product,1134,Sales (owner: sales),sales,id,0,,xeroItemId,0,5,True,True,737,557056
+ProductAvailability,ProductAvailability,1183,Sales (owner: sales),sales,"@@id([productId, market])",1,Product,,0,1,True,True,849,262144
+ProductAddOnFamilyRestriction,ProductAddOnFamilyRestriction,1195,Sales (owner: sales),sales,"@@id([addOnId, boothFamily])",1,Product,,0,1,True,True,692,163840
+ProductFamilyInfo,ProductFamilyInfo,1207,Sales (owner: sales),sales,id,0,,,0,2,True,True,22,98304
+Client,Client,1225,Sales (owner: sales),sales,id,3,Client User,xeroContactId,0,3,True,True,3520,1138688
+ClientMergeAudit,ClientMergeAudit,1273,Sales (owner: sales),sales,id,3,Client User,,0,1,True,True,1,81920
+ClientContact,ClientContact,1291,Sales (owner: sales),sales,id,1,Client,,0,1,True,True,4247,1220608
+ClientLabel,ClientLabel,1310,Sales (owner: sales),sales,id,0,,,0,0,True,True,1,49152
+ClientLabelAssignment,ClientLabelAssignment,1320,Sales (owner: sales),sales,"@@id([clientId, labelId])",2,Client ClientLabel,,0,1,True,True,5,49152
+ClientEvent,ClientEvent,1348,Sales (owner: sales),sales,id,3,Client User,,0,1,True,True,0,24576
+ClientEventReceipt,ClientEventReceipt,1377,Sales (owner: sales),sales,id,2,ClientEvent User,storageKey,0,2,True,True,0,40960
+Deal,Deal,1406,Sales (owner: sales),sales,id,2,Client Deal,dealId createdByUserId xeroInvoiceId xeroFinalInvoiceId xeroRoutingContactId xeroRoutingConnectionKey xeroBrandingThemeId zampTransactionId hubspotDealId hubspotFileId hubspotNoteId deletedByUserId,0,8,True,True,6977,7913472
+DealAuditLog,DealAuditLog,1592,Sales (owner: sales),sales,id,1,Deal,actorUserId,0,2,True,True,9137,7299072
+SalesPayment,SalesPayment,1610,Sales (owner: sales),sales,id,1,Deal,invoiceKey xeroPaymentId xeroInvoiceId recordedById,0,3,True,True,6042,4112384
+SalesPaymentWindow,SalesPaymentWindow,1635,Sales (owner: sales),sales,id,0,,,0,0,True,True,53,65536
+SalesPaymentSync,SalesPaymentSync,1643,Sales (owner: sales),sales,id,0,,,0,0,True,True,1,65536
+DealAttachment,DealAttachment,1654,Sales (owner: sales),sales,id,1,Deal,storageKey uploadedByUserId,0,1,True,True,58,81920
+DealLabel,DealLabel,1679,Sales (owner: sales),sales,id,0,,hubspotCampaignId hubspotPortalId,0,1,True,True,13,81920
+HubSpotCampaignSyncState,HubSpotCampaignSyncState,1697,Sales (owner: sales),sales,portalId,0,,,0,0,True,True,1,65536
+DealLabelAssignment,DealLabelAssignment,1704,Sales (owner: sales),sales,"@@id([dealId, labelId])",2,Deal DealLabel,,0,1,True,True,147,106496
+DealSubscription,DealSubscription,1719,Sales (owner: sales),sales,id,2,Deal User,,1,1,True,True,2,65536
+DealContact,DealContact,1733,Sales (owner: sales),sales,id,1,Deal,,0,1,True,True,7024,2015232
+QuoteLineItem,QuoteLineItem,1750,Sales (owner: sales),sales,id,3,Deal Product QuoteLineItem,,0,3,True,True,12316,4816896
+BoothUnit,BoothUnit,1790,Sales (owner: sales),sales,id,2,Deal Product,inventoryUnitId,0,3,True,True,9132,2416640
+QuotePdfTemplate,QuotePdfTemplate,1826,Sales (owner: sales),sales,id,0,,,1,0,True,True,10,81920
+QuotePdfMarketDefault,QuotePdfMarketDefault,1843,Sales (owner: sales),sales,market,1,QuotePdfTemplate,,0,1,True,True,11,49152
+XeroMarketThemeMapping,XeroMarketThemeMapping,1858,Xero integration (owner: sales),sales,market,0,,brandingThemeId,0,0,True,True,9,32768
+XeroMarketTaxMapping,XeroMarketTaxMapping,1867,Xero integration (owner: sales),sales,market,0,,,0,0,True,True,9,32768
+XeroMarketAccountMapping,XeroMarketAccountMapping,1878,Xero integration (owner: sales),sales,market,0,,,0,0,True,True,9,32768
+XeroMarketTaxAccountMapping,XeroMarketTaxAccountMapping,1887,Xero integration (owner: sales),sales,market,0,,,0,0,True,True,0,16384
+XeroUsStateMapping,XeroUsStateMapping,1896,Xero integration (owner: sales),sales,state,0,,brandingThemeId,0,0,True,True,51,73728
+XeroIntegrationSettings,XeroIntegrationSettings,1912,Xero integration (owner: sales),sales,id,0,,defaultBrandingThemeId defaultUsBrandingThemeId,0,0,True,True,1,32768
+HubSpotMarketingSync,HubSpotMarketingSync,1937,HubSpot integration (owner: sales),sales,id,0,,portalId runId,0,0,True,True,1,32768
+HubSpotMarketingForm,HubSpotMarketingForm,1955,HubSpot integration (owner: sales),sales,id,0,,portalId seenRunId cursorRunId completedRunId mappingUpdatedById,0,1,True,True,22,98304
+HubSpotMarketingSubmission,HubSpotMarketingSubmission,1976,HubSpot integration (owner: sales),sales,"@@id([formId, submissionId])",1,HubSpotMarketingForm,submissionId seenRunId,0,1,True,True,5262,2088960
+HubSpotLostReason,HubSpotLostReason,1992,HubSpot integration (owner: sales),sales,id,0,,,0,1,True,True,12,65536
+HubSpotDealSnapshot,HubSpotDealSnapshot,2010,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,0,,stageId ownerId,0,2,True,True,644,450560
+SalesRepIdentity,SalesRepIdentity,2056,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,1,User,hubspotOwnerId,0,1,True,True,15,81920
+SalesPrioritySettings,SalesPrioritySettings,2071,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,0,,updatedById,0,0,True,True,1,32768
+SalesPriorityRun,SalesPriorityRun,2080,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,0,,,0,0,True,True,29,81920
+SalesPriorityWorkItem,SalesPriorityWorkItem,2099,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,1,SalesPriorityRun,userId familyId,1,1,True,True,7400,40476672
+SalesOpportunitySnapshot,SalesOpportunitySnapshot,2127,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,1,SalesPriorityRun,familyId dealId userId,1,0,True,True,11183,45907968
+SalesCrmSnapshot,SalesCrmSnapshot,2142,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,hubspotDealId,0,,,0,0,True,True,308,3055616
+SalesCompanyResearch,SalesCompanyResearch,2151,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,domain,0,,,0,0,True,True,0,16384
+SalesPriorityRecommendation,SalesPriorityRecommendation,2162,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,1,SalesPriorityRun,userId familyId dealId,1,1,True,True,790,3153920
+SalesPriorityFeedback,SalesPriorityFeedback,2182,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,1,SalesPriorityRecommendation,userId,1,1,True,True,101,122880
+SalesForecastSettings,SalesForecastSettings,2202,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,0,,updatedById,0,0,True,True,1,32768
+SalesForecastRun,SalesForecastRun,2213,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,0,,,0,1,True,True,39,8331264
+SalesForecastManualRun,SalesForecastManualRun,2244,/// Activity and pipeline state mirrored from a HubSpot deal (owner: sales).,sales,id,0,,requestedById,0,2,True,True,0,32768
+NotificationOutbox,NotificationOutbox,2286,Notifications (owner: gateway),gateway,id,0,,idempotencyKey,0,1,True,True,1550,1212416
+NotificationDelivery,NotificationDelivery,2310,Notifications (owner: gateway),gateway,id,1,NotificationOutbox,recipientUserId resendMessageId,0,2,True,True,9306,3039232
+NotificationEventSetting,NotificationEventSetting,2329,Notifications (owner: gateway),gateway,eventType,0,,,0,0,True,True,19,65536
+Notification,Notification,2340,Notifications (owner: gateway),gateway,id,1,User,outboxId,0,1,True,True,4570,2424832
+UserNotificationPreference,UserNotificationPreference,2359,Notifications (owner: gateway),gateway,id,1,User,,1,0,True,True,38,49152
+AppAnnouncement,AppAnnouncement,2374,Notifications (owner: gateway),gateway,id,1,User,,0,1,True,True,8,81920
+MrpUserProfile,MrpUserProfile,2479,Manufacturing / MRP (owner: mrp),mrp,userId,1,User,,0,0,True,True,2,32768
+MrpSupplier,MrpSupplier,2488,Manufacturing / MRP (owner: mrp),mrp,id,0,,zeronId,0,3,True,True,0,40960
+MrpSupplierExtractionProfile,MrpSupplierExtractionProfile,2516,Manufacturing / MRP (owner: mrp),mrp,supplierId,1,MrpSupplier,,0,0,True,True,0,16384
+MrpDocument,MrpDocument,2528,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpSupplier User,storageKey thumbnailKey zeronId,0,6,True,True,0,65536
+MrpLineItem,MrpLineItem,2594,Manufacturing / MRP (owner: mrp),mrp,id,1,MrpDocument,matchedZeronItemId,1,1,True,True,0,32768
+MrpCorrectionLog,MrpCorrectionLog,2617,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpDocument MrpSupplier User,,0,2,True,True,0,32768
+MrpSyncAttempt,MrpSyncAttempt,2638,Manufacturing / MRP (owner: mrp),mrp,id,1,MrpDocument,,0,4,True,True,0,49152
+MrpWarehouse,MrpWarehouse,2661,Manufacturing / MRP (owner: mrp),mrp,id,0,,,0,0,True,True,6,49152
+MrpBoothModel,MrpBoothModel,2675,Manufacturing / MRP (owner: mrp),mrp,id,0,,,0,0,True,True,9,81920
+MrpBoothElement,MrpBoothElement,2689,Manufacturing / MRP (owner: mrp),mrp,id,1,MrpBoothModel,,3,1,True,True,97,131072
+MrpMaterialCategory,MrpMaterialCategory,2716,Manufacturing / MRP (owner: mrp),mrp,id,1,MrpMaterialCategory,,0,2,True,True,55,81920
+MrpMaterial,MrpMaterial,2736,Manufacturing / MRP (owner: mrp),mrp,id,1,MrpMaterialCategory,,0,5,True,True,446,499712
+MrpBomMissingMaterialCode,MrpBomMissingMaterialCode,2769,Manufacturing / MRP (owner: mrp),mrp,code,0,,,0,0,True,True,0,65536
+MrpElementBomLine,MrpElementBomLine,2776,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpBoothElement MrpMaterial MrpRecipeVersion,,1,1,True,True,1297,3219456
+MrpElectricModule,MrpElectricModule,2798,Manufacturing / MRP (owner: mrp),mrp,id,0,,,0,0,True,True,26,81920
+MrpElectricModuleLine,MrpElectricModuleLine,2815,Manufacturing / MRP (owner: mrp),mrp,id,2,MrpElectricModule MrpMaterial,,1,1,True,True,101,163840
+MrpElectricAssembly,MrpElectricAssembly,2832,Manufacturing / MRP (owner: mrp),mrp,id,1,MrpBoothModel,,0,1,True,True,6,65536
+MrpElectricAssemblyLine,MrpElectricAssemblyLine,2853,Manufacturing / MRP (owner: mrp),mrp,id,2,MrpElectricAssembly MrpElectricModule,,1,1,True,True,44,65536
+MrpRecipeVersion,MrpRecipeVersion,2869,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpBoothModel MrpRecipeVersion User,,1,2,True,True,7,98304
+MrpRecipeVersionPanel,MrpRecipeVersionPanel,2897,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpBoothElement MrpRecipeVersion MrpRecipeVersionPanel,,2,1,True,True,60,114688
+MrpElectricAssemblyVersion,MrpElectricAssemblyVersion,2923,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpElectricAssembly MrpElectricAssemblyVersion User,,1,2,True,False,,
+MrpRecipeVersionElectric,MrpRecipeVersionElectric,2950,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpElectricAssembly MrpElectricAssemblyVersion MrpRecipeVersion,,1,1,True,True,6,49152
+MrpRecipeVersionBatchLink,MrpRecipeVersionBatchLink,2974,Manufacturing / MRP (owner: mrp),mrp,id,2,MrpManufacturingBatch MrpRecipeVersion,,0,3,True,True,0,40960
+MrpManufacturingBatch,MrpManufacturingBatch,2990,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpBoothModel MrpRecipeVersion MrpWarehouse,masterSheetRowKey batchSpreadsheetId dealId,0,2,True,True,120,180224
+MrpBatchUnit,MrpBatchUnit,3020,Manufacturing / MRP (owner: mrp),mrp,id,1,MrpManufacturingBatch,,1,0,True,True,1224,516096
+MrpBatchUnitElement,MrpBatchUnitElement,3037,Manufacturing / MRP (owner: mrp),mrp,id,2,MrpBatchUnit MrpBoothElement,,1,0,True,True,9604,3383296
+MrpRecipeException,MrpRecipeException,3054,Manufacturing / MRP (owner: mrp),mrp,id,1,User,,0,2,True,True,0,32768
+MrpRecipeExceptionScope,MrpRecipeExceptionScope,3073,Manufacturing / MRP (owner: mrp),mrp,id,2,MrpBoothModel MrpRecipeException,,1,1,True,True,0,32768
+MrpRecipeExceptionLineChange,MrpRecipeExceptionLineChange,3088,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpBoothElement MrpMaterial MrpRecipeException,,0,1,True,True,0,24576
+MrpRecipeExceptionBatchLink,MrpRecipeExceptionBatchLink,3106,Manufacturing / MRP (owner: mrp),mrp,id,2,MrpManufacturingBatch MrpRecipeException,,0,1,True,True,0,24576
+MrpSheetSyncLog,MrpSheetSyncLog,3121,Manufacturing / MRP (owner: mrp),mrp,id,0,,,0,0,True,True,6198,4513792
+MrpStockMovement,MrpStockMovement,3131,Manufacturing / MRP (owner: mrp),mrp,id,3,MrpMaterial MrpWarehouse User,referenceId,0,3,True,True,10722,5169152
+MrpStockBalance,MrpStockBalance,3157,Manufacturing / MRP (owner: mrp),mrp,id,2,MrpMaterial MrpWarehouse,,1,0,True,True,79,90112
+MrpProductionBatch,MrpProductionBatch,3171,Manufacturing / MRP (owner: mrp),mrp,id,1,User,,0,1,True,True,0,24576
+MrpProductionBatchLine,MrpProductionBatchLine,3186,Manufacturing / MRP (owner: mrp),mrp,id,2,MrpMaterial MrpProductionBatch,,1,2,True,True,0,40960
+MrpInventoryCount,MrpInventoryCount,3202,Manufacturing / MRP (owner: mrp),mrp,id,4,MrpMaterial MrpStockMovement MrpWarehouse User,countedThroughBatchId,0,2,True,True,0,65536
+FactoryStationRole,FactoryStationRole,3265,Factory floor (owner: factory),factory,id,0,,,0,0,True,True,6,49152
+FactoryStation,FactoryStation,3274,Factory floor (owner: factory),factory,id,1,FactoryStationRole,,0,0,True,True,10,49152
+FactoryBoothModel,FactoryBoothModel,3298,Factory floor (owner: factory),factory,id,0,,,0,0,True,True,8,49152
+FactoryElement,FactoryElement,3315,Factory floor (owner: factory),factory,id,0,,,0,0,True,True,14,81920
+FactoryStationElementRequirement,FactoryStationElementRequirement,3334,Factory floor (owner: factory),factory,id,4,FactoryBoothModel FactoryElement FactoryStation,,1,0,True,True,105,155648
+FactoryColor,FactoryColor,3355,Factory floor (owner: factory),factory,id,0,,,0,0,True,True,7,49152
+FactoryBoothOption,FactoryBoothOption,3371,Factory floor (owner: factory),factory,id,0,,,0,0,True,True,2,49152
+FactoryProductionBatch,FactoryProductionBatch,3381,Factory floor (owner: factory),factory,id,1,FactoryBoothModel,,0,1,True,True,36,98304
+FactoryProductionBatchColor,FactoryProductionBatchColor,3407,Factory floor (owner: factory),factory,id,2,FactoryColor FactoryProductionBatch,,1,0,True,True,70,81920
+FactoryProductionBoothUnit,FactoryProductionBoothUnit,3422,Factory floor (owner: factory),factory,id,1,FactoryProductionBatchColor,,2,0,True,True,624,647168
+FactoryProductionBoothUnitOption,FactoryProductionBoothUnitOption,3441,Factory floor (owner: factory),factory,"@@id([boothUnitId, optionId])",2,FactoryBoothOption FactoryProductionBoothUnit,,0,0,True,True,0,16384
+FactoryStationWorkItem,FactoryStationWorkItem,3455,Factory floor (owner: factory),factory,id,5,FactoryColor FactoryElement FactoryProductionBatch FactoryProductionBoothUnit FactoryStation,,1,2,True,True,65,499712
+FactoryProductionEvent,FactoryProductionEvent,3484,Factory floor (owner: factory),factory,id,6,FactoryColor FactoryElement FactoryProductionBatch FactoryProductionBoothUnit FactoryStation FactoryWorkSession,clientEventId,0,2,True,True,512,786432
+FactoryWorkSession,FactoryWorkSession,3513,Factory floor (owner: factory),factory,id,5,FactoryColor FactoryElement FactoryProductionBatch FactoryProductionBoothUnit FactoryStation,,0,0,True,True,372,172032
+FactoryQuota,FactoryQuota,3531,Factory floor (owner: factory),factory,id,3,FactoryElement FactoryProductionBatch FactoryStation,,0,0,True,True,4,32768
+FactoryScheduleTaskOverride,FactoryScheduleTaskOverride,3548,Factory floor (owner: factory),factory,"@@id([batchId, elementId, processStep])",3,FactoryElement FactoryProductionBatch FactoryStation,,0,1,True,True,63,114688
+FactoryDevice,FactoryDevice,3565,Factory floor (owner: factory),factory,id,1,FactoryStation,,0,0,True,True,49,49152
+FactoryCncMachineMap,FactoryCncMachineMap,3577,Factory floor (owner: factory),factory,id,1,FactoryStation,,0,0,True,True,2,49152
+FactoryCncDailySummary,FactoryCncDailySummary,3585,Factory floor (owner: factory),factory,id,1,FactoryStation,,1,0,True,True,0,24576
+FactorySite,FactorySite,3604,Factory planning (owner: factory),factory,id,0,,spreadsheetId,0,0,True,True,3,49152
+FactoryBoothVersionCode,FactoryBoothVersionCode,3616,Factory planning (owner: factory),factory,id,0,,,0,0,True,True,28,49152
+FactoryBatchProductionOption,FactoryBatchProductionOption,3628,Factory planning (owner: factory),factory,id,0,,,0,0,True,True,0,24576
+FactoryBoothProductionOption,FactoryBoothProductionOption,3638,Factory planning (owner: factory),factory,id,0,,,0,0,True,True,0,24576
+FactoryPlanningBatch,FactoryPlanningBatch,3648,Factory planning (owner: factory),factory,id,4,FactoryBatchProductionOption FactoryBoothModel FactoryBoothVersionCode FactorySite,,0,2,True,True,94,131072
+FactoryPlanningBooth,FactoryPlanningBooth,3676,Factory planning (owner: factory),factory,id,4,FactoryBoothModel FactoryBoothProductionOption FactoryBoothVersionCode FactoryPlanningBatch,boothUniqueId,0,1,True,True,1603,745472
+FactoryPlanningImportRun,FactoryPlanningImportRun,3698,Factory planning (owner: factory),factory,id,1,FactorySite,,0,0,True,True,122894,25190400
+FactoryPlanningMonth,FactoryPlanningMonth,3716,Factory planning (owner: factory),factory,id,1,FactorySite,,1,1,True,True,22,65536
+FactoryPanelScrapReport,FactoryPanelScrapReport,3763,Factory planning (owner: factory),factory,id,8,FactoryBoothModel FactoryColor FactoryElement FactoryProductionBatch FactoryProductionEvent FactoryStation User,pdfStorageKey,0,6,True,True,0,81920
+FactorySetting,FactorySetting,3806,Factory planning (owner: factory),factory,key,0,,updatedByUserId,0,0,True,True,1,32768
+FactoryPanelScrapPhoto,FactoryPanelScrapPhoto,3813,Factory planning (owner: factory),factory,id,1,FactoryPanelScrapReport,storageKey,0,1,True,True,0,24576
+FactoryStationIssue,FactoryStationIssue,3836,Factory planning (owner: factory),factory,id,6,FactoryColor FactoryDevice FactoryElement FactoryProductionBatch FactoryStation User,clientIssueId,0,2,True,True,4,81920
+RpRequest,rp_requests,3898,RP spare parts / panels (owner: rp),rp,id,0,,userId boothId linkedGroupId,0,5,True,True,379,696320
+RpLineItem,rp_line_items,3957,RP spare parts / panels (owner: rp),rp,id,2,RpInternalProductionRow RpRequest,takenFromStockBy,1,4,True,True,844,679936
+RpPartMrpMap,rp_part_mrp_maps,3993,RP spare parts / panels (owner: rp),rp,id,1,MrpMaterial,,0,1,True,True,59,114688
+RpPanelMrpMap,rp_panel_mrp_maps,4008,RP spare parts / panels (owner: rp),rp,id,1,MrpBoothElement,,1,2,True,True,32,81920
+RpSparePart,rp_spare_parts,4028,RP spare parts / panels (owner: rp),rp,id,0,,imageFileId,0,3,True,True,125,212992
+RpPanelOption,rp_panel_options,4051,RP spare parts / panels (owner: rp),rp,id,0,,,1,3,True,True,96,131072
+RpInternalProductionRow,internal_production_rows,4069,RP spare parts / panels (owner: rp),rp,id,2,RpLineItem RpRequest,,0,3,True,True,30,270336
+RpPhoto,rp_photos,4107,RP spare parts / panels (owner: rp),rp,id,1,RpRequest,storageKey,0,1,True,True,15,49152
+RpAutomationState,automation_state,4123,RP spare parts / panels (owner: rp),rp,key,0,,,0,0,True,True,484,270336
+RpSheetRowMap,sheet_row_map,4131,RP spare parts / panels (owner: rp),rp,id,0,,entityId,1,0,True,True,333,425984
+RpSheetSyncOutbox,sheet_sync_outbox,4143,RP spare parts / panels (owner: rp),rp,id,0,,entityId,0,1,True,True,980,286720
+RpAddressBookEntry,address_book_entries,4159,RP spare parts / panels (owner: rp),rp,id,0,,,0,1,True,True,17,49152
+RpPanelCatalogOption,panel_catalog_options,4172,RP spare parts / panels (owner: rp),rp,id,0,,,0,0,True,True,0,16384
+RpExportTrackingRow,export_tracking_rows,4181,RP spare parts / panels (owner: rp),rp,id,0,,,0,0,True,True,128,81920
+RpNumSequence,rp_num_sequences,4190,RP spare parts / panels (owner: rp),rp,id,0,,,0,0,True,True,1,65536
+RpIpNumSequence,ip_num_sequences,4197,RP spare parts / panels (owner: rp),rp,id,0,,,0,0,True,True,1,65536
+RpLifecycleEvent,rp_lifecycle_events,4209,RP spare parts / panels (owner: rp),rp,id,0,,entityId,0,2,True,True,574,294912
+ClockWorker,clock_workers,4240,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,1,User,,0,0,True,True,13,49152
+ClockCardBinding,clock_card_bindings,4254,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,1,ClockWorker,,0,1,True,True,21,49152
+ClockPendingUid,clock_pending_uids,4268,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,0,,stationId,0,2,True,True,21,81920
+ClockUnassignedTap,clock_unassigned_taps,4284,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,1,ClockPendingUid,stationId,0,0,True,True,7,32768
+ClockEvent,clock_events,4297,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,1,ClockWorker,stationId idempotencyKey,0,3,True,True,210,221184
+ClockWorkSettings,clock_work_settings,4316,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,0,,,0,0,True,True,1,32768
+ClockDevice,clock_devices,4326,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,0,,stationId,0,0,True,True,1,81920
+ClockDeviceEvent,clock_device_events,4345,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,0,,stationId,0,1,True,True,0,24576
+ClockExcludedDay,clock_excluded_days,4361,"Clock-In (owner: clock app, clock.meavo.app)",clock,id,0,,,0,0,True,True,0,24576
+TaskWorkspace,TaskWorkspace,4410,Task management (owner: tasks),tasks,id,2,Team User,,0,3,True,True,18,81920
+TaskWorkspaceMember,TaskWorkspaceMember,4432,Task management (owner: tasks),tasks,id,2,TaskWorkspace User,,1,1,True,True,1,65536
+TaskBoardColumn,TaskBoardColumn,4446,Task management (owner: tasks),tasks,id,1,TaskWorkspace,,0,1,True,True,72,49152
+Task,Task,4460,Task management (owner: tasks),tasks,id,3,TaskBoardColumn TaskWorkspace User,,0,4,True,True,74,163840
+TaskAssignee,TaskAssignee,4489,Task management (owner: tasks),tasks,id,2,Task User,,1,2,True,True,84,114688
+TaskExternalLink,TaskExternalLink,4504,Task management (owner: tasks),tasks,id,1,Task,entityId,0,2,True,True,4,65536
+TaskComment,TaskComment,4520,Task management (owner: tasks),tasks,id,4,Task TaskComment User,,0,3,True,True,4,81920
+FeatureRequest,FeatureRequest,4565,"Feature requests (owner: requests, requests.meavo.app)",requests,id,2,FeatureRequest User,,0,6,True,True,14,131072
+FeatureRequestAttachment,FeatureRequestAttachment,4593,"Feature requests (owner: requests, requests.meavo.app)",requests,id,1,FeatureRequest,storageKey,0,1,True,True,3,49152
+FeatureRequestVote,FeatureRequestVote,4607,"Feature requests (owner: requests, requests.meavo.app)",requests,id,2,FeatureRequest User,,1,1,True,True,15,65536
+StockPartner,StockPartner,4641,"Partner stock (owner: stock, stock.meavo.app)",stock,id,1,User,,0,3,True,True,6,114688
+StockPartnerVisit,StockPartnerVisit,4669,"Partner stock (owner: stock, stock.meavo.app)",stock,id,1,StockPartner,,0,1,True,True,44,49152
+SalesOpportunityForecastRun,SalesOpportunityForecastRun,4681,// Opportunity forecast (owner: sales). Historical scalar IDs deliberately have no live user/deal FK.,sales,id,0,,requestKey requestedById,0,1,True,True,4,286720
+SalesOpportunityForecastItem,SalesOpportunityForecastItem,4707,// Opportunity forecast (owner: sales). Historical scalar IDs deliberately have no live user/deal FK.,sales,id,1,SalesOpportunityForecastRun,familyId dealId,1,3,True,True,1299,13459456
+SalesOpportunityQualification,SalesOpportunityQualification,4732,// Opportunity forecast (owner: sales). Historical scalar IDs deliberately have no live user/deal FK.,sales,familyId,0,,,0,0,True,True,0,16384
+SalesOpportunityQualificationEvent,SalesOpportunityQualificationEvent,4737,// Opportunity forecast (owner: sales). Historical scalar IDs deliberately have no live user/deal FK.,sales,id,0,,familyId actorId,0,1,True,True,0,24576
+InventoryAccess,InventoryAccess,4835,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,1,User,,1,0,True,True,1,49152
+InventoryWarehouse,InventoryWarehouse,4845,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,0,,,0,1,True,True,1,65536
+InventoryWarehouseServiceRule,InventoryWarehouseServiceRule,4873,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,1,InventoryWarehouse,,0,2,True,True,0,32768
+InventorySpot,InventorySpot,4890,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,1,InventoryWarehouse,,2,0,True,True,0,32768
+InventoryPallet,InventoryPallet,4905,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,2,InventorySpot InventoryWarehouse,,0,2,True,True,0,40960
+InventoryFactory,InventoryFactory,4922,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,0,,sourceId,1,0,True,True,0,32768
+InventoryBatch,InventoryBatch,4938,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,1,InventoryFactory,sourceId,3,0,True,True,0,40960
+InventoryFinish,InventoryFinish,4957,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,0,,,0,0,True,True,0,24576
+InventoryCatalogMapping,InventoryCatalogMapping,4972,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,1,InventoryFinish,sourceId,1,1,True,True,0,32768
+InventoryUnit,InventoryUnit,4992,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,5,InventoryBatch InventoryFactory InventoryFinish InventoryWarehouse,packedCheckedById sourceId,1,5,True,True,0,81920
+InventoryPalletContent,InventoryPalletContent,5052,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,2,InventoryPallet InventoryUnit,packageKey,2,1,True,True,0,40960
+InventoryDemand,InventoryDemand,5070,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,1,InventoryWarehouse,sourceId dealId quoteId activeVariationKey reservationRequestedById,1,5,True,True,0,65536
+InventoryDemandLine,InventoryDemandLine,5120,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,2,InventoryDemand InventoryFinish,sourceLineId,1,1,True,True,0,32768
+InventorySuggestion,InventorySuggestion,5144,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,1,InventoryDemand,createdById,0,1,True,True,0,24576
+InventoryAllocation,InventoryAllocation,5158,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,3,InventoryDemandLine InventoryUnit User,requestedById releasedById,1,5,True,True,0,81920
+InventorySerialSequence,InventorySerialSequence,5196,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,0,,,0,0,True,True,0,16384
+InventoryTransfer,InventoryTransfer,5202,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,2,InventoryWarehouse,createdById dispatchedById receivedById,1,2,True,True,0,49152
+InventoryTransferItem,InventoryTransferItem,5228,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,5,InventoryPalletContent InventoryTransfer InventoryUnit InventoryWarehouse,receivedById,0,5,True,True,0,73728
+InventoryPreparationTask,InventoryPreparationTask,5255,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,2,InventoryAllocation InventoryUnit,completedById,0,2,True,True,0,32768
+InventoryAuditEvent,InventoryAuditEvent,5274,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,3,InventoryDemand InventoryUnit User,,0,3,True,True,2,81920
+InventoryOperation,InventoryOperation,5297,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,key,0,,actorId,0,0,True,True,0,16384
+InventoryIntegrationEvent,InventoryIntegrationEvent,5308,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,0,,sourceEventId actorUserId,1,1,True,True,0,32768
+InventoryExportLine,InventoryExportLine,5330,"Physical booth inventory (owner: inventory, inventory.meavo.app)",inventory,id,5,InventoryAllocation InventoryDemand InventoryTransfer InventoryUnit InventoryWarehouse,loadedById createdById,1,6,True,True,0,81920

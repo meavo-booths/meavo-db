@@ -1,0 +1,1 @@
+SELECT count(*) AS mrp_units_with_id, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "FactoryPlanningBooth" p WHERE p."boothUniqueId" = substring(m."boothIdText" from '([0-9]{5})'))) AS found_in_planning FROM "MrpBatchUnit" m WHERE substring(m."boothIdText" from '([0-9]{5})') IS NOT NULL

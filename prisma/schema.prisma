@@ -2,7 +2,8 @@
 // @meavo/db - canonical Prisma schema for the shared MEAVO Postgres database.
 //
 // This is the ONLY schema allowed to alter the database. App repos (gateway,
-// hols, assembly, sales) consume this package and run `prisma generate` only.
+// hols, assembly, sales, mrp, factory, rp, clock, tasks, requests, stock,
+// inventory) consume this package and run `prisma generate` only.
 // Schema changes: edit here, apply from this repo, tag a release, then bump
 // the dependency in each app.
 // ============================================================================

@@ -1,0 +1,1 @@
+SELECT relname AS table_name, n_live_tup AS live_rows, n_tup_ins AS inserts, n_tup_upd AS updates, n_tup_del AS deletes, pg_total_relation_size(relid) AS total_bytes, last_autoanalyze FROM pg_stat_user_tables WHERE relname >= 'M' ORDER BY relname

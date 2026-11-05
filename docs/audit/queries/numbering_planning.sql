@@ -1,0 +1,1 @@
+SELECT min("boothUniqueId"::int) AS min_id, max("boothUniqueId"::int) AS max_id, count(*) AS booths, count(DISTINCT "boothUniqueId") AS distinct_ids, count(*) FILTER (WHERE "boothUniqueId" !~ '^[0-9]{5}$') AS not_five_digit FROM "FactoryPlanningBooth"

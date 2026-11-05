@@ -1,0 +1,1 @@
+SELECT direction, count(*) AS runs, count(*) FILTER (WHERE errors IS NOT NULL AND errors::text <> '[]' AND errors::text <> 'null') AS runs_with_errors, min("startedAt") AS first_run, max("startedAt") AS last_run FROM "FactoryPlanningImportRun" GROUP BY 1 ORDER BY 1

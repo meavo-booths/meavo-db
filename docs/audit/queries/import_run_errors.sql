@@ -1,0 +1,1 @@
+SELECT regexp_replace(e, '^Row [0-9]+: ', '') AS error_text, count(*) FROM "FactoryPlanningImportRun" r, jsonb_array_elements_text(r.errors::jsonb) e WHERE r.errors IS NOT NULL AND jsonb_typeof(r.errors::jsonb) = 'array' GROUP BY 1 ORDER BY 2 DESC LIMIT 20

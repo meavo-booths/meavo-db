@@ -1,0 +1,1 @@
+SELECT count(*) AS factory_sourced_units, count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM "FactoryProductionBatch" pb WHERE pb."batchCode" = substring(u."sourceId" from '^factory:\["([^"]+)"'))) AS batch_missing FROM "InventoryUnit" u WHERE u."sourceSystem" = 'factory'
