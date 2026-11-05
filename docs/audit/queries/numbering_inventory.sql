@@ -1,0 +1,1 @@
+SELECT count(*) FILTER (WHERE "serialNumber" < 40000) AS legacy_units, min("serialNumber") FILTER (WHERE "serialNumber" < 40000) AS legacy_min, max("serialNumber") FILTER (WHERE "serialNumber" < 40000) AS legacy_max, count(*) FILTER (WHERE "serialNumber" >= 40000) AS issued_units, max("serialNumber") AS max_serial, count(*) AS units FROM "InventoryUnit"

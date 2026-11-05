@@ -1,0 +1,32 @@
+table,schema,rows,bytes,origin
+FactoryModelPanelEffort,public,64,81920,Factory runtime DDL
+FactoryPallet,public,999,245760,Factory runtime DDL
+FactoryPalletHold,public,1,65536,Factory runtime DDL
+FactoryPalletLine,public,0,65536,Factory runtime DDL
+FactoryPanelOrder,public,0,40960,Factory runtime DDL
+FactoryPanelOrderEvent,public,0,40960,Factory runtime DDL
+FactoryPanelOrderScrapReport,public,0,49152,Factory runtime DDL
+FactoryStationAssignment,public,4,81920,Factory runtime DDL
+FactoryStationBreak,public,30,65536,Factory runtime DDL
+FactoryWorker,public,26,49152,Factory runtime DDL
+MrpRecipeVersionAmendment,public,1,49152,MRP repo scripts
+MrpRecipeVersionDocumentLink,public,6,49152,MRP repo scripts
+MrpRecipeVersionScope,public,6,65536,MRP repo scripts
+TaskAttachment,public,0,24576,Tasks repo scripts
+TaskIntegration,public,0,32768,Tasks repo scripts
+TaskUserSettings,public,0,16384,Tasks repo scripts
+ZeronAcceptedUnitCost,public,0,40960,Zeron app schema
+ZeronDeliveryRow,public,1353,917504,Zeron app schema
+ZeronImportRun,public,1,65536,Zeron app schema
+ZeronImportedTab,public,1,65536,Zeron app schema
+ZeronSheetState,public,1,65536,Zeron app schema
+mrp_one_shot_script,public,1,32768,MRP repo scripts
+account,neon_auth,,24576,Neon Auth
+invitation,neon_auth,,32768,Neon Auth
+jwks,neon_auth,,16384,Neon Auth
+member,neon_auth,,32768,Neon Auth
+organization,neon_auth,,32768,Neon Auth
+project_config,neon_auth,,49152,Neon Auth
+session,neon_auth,,32768,Neon Auth
+user,neon_auth,,24576,Neon Auth
+verification,neon_auth,,24576,Neon Auth

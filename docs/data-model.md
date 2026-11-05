@@ -1,6 +1,6 @@
 # Data model — meavo-db
 
-The canonical schema lives **in this repo**: `prisma/schema.prisma` (~125 models, ~54 enums). This is the only repo allowed to alter the shared MEAVO Neon Postgres database; every app repo consumes it read-only via the `@meavo/db` git dependency and runs `prisma generate` only.
+The canonical schema lives **in this repo**: `prisma/schema.prisma` (243 models, 99 enums at v0.101.0; 231 and 97 at v0.100.0, whose per-table inventory with production row counts is [audit/tables-2026-11.csv](audit/tables-2026-11.csv)). This is the only repo allowed to alter the shared MEAVO Neon Postgres database; every app repo consumes it read-only via the `@meavo/db` git dependency and runs `prisma generate` only.
 
 Pinned version: apps pin a git tag, e.g. `"@meavo/db": "git+https://github.com/meavo-booths/meavo-db.git#v0.13.0"` — current version in `package.json`.
 
@@ -11,20 +11,24 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Schema section | Owner app | Representative models |
 |----------------|-----------|-----------------------|
 | Identity & access | gateway | `User`, `Account`, `Team`, `TeamSubgroup`, `TeamMember`, `GatewayUserImportReceipt`, `ToolCard`, `ToolCardAccess`, `LoginThrottle` |
-| HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `DocumentTemplate*`, `GeneratedDocument`, `LibraryAsset`, `GatewaySheetRecord` |
+| HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `EmployeeCommission`, `DocumentTemplate*`, `GeneratedDocument`, `SignatureRequest`, `LibraryAsset`, `LibraryVideo`, `UsefulLink`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner` (incl. `phone`), `Questionnaire*`, `QuestionnaireSubmission` (incl. `notes`), `Resource*`, `SheetImportState` |
 | Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `ClientMergeAudit`, `Deal`, `DealLabel`, `DealLabelAssignment`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
+| Sales payments | sales | `SalesPayment`, `SalesPaymentWindow`, `SalesPaymentSync` |
+| HubSpot integration | sales | `HubSpotMarketingSync`, `HubSpotMarketingForm`, `HubSpotMarketingSubmission`, `HubSpotLostReason`, `HubSpotDealSnapshot`, `HubSpotCampaignSyncState` |
 | Sales daily priorities | sales | `SalesRepIdentity`, `SalesPrioritySettings`, `SalesPriorityRun`, `SalesPriorityWorkItem`, `SalesOpportunitySnapshot`, `SalesCrmSnapshot`, `SalesCompanyResearch`, `SalesPriorityRecommendation`, `SalesPriorityFeedback` |
-| Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroIntegrationSettings` |
-| Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting` |
-| Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpElementBomLine`, ... |
-| Factory floor + planning | factory | `FactoryStation*`, `FactoryProduction*`, `FactoryPlanning*`, `FactoryDevice`, `FactoryCnc*` |
+| Sales forecasts | sales | `SalesForecastSettings`, `SalesForecastRun`, `SalesForecastManualRun`, `SalesOpportunityForecastRun`, `SalesOpportunityForecastItem`, `SalesOpportunityQualification`, `SalesOpportunityQualificationEvent` |
+| Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroMarketTaxAccountMapping`, `XeroUsStateMapping`, `XeroIntegrationSettings` |
+| Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting`, `Notification`, `UserNotificationPreference`, `AppAnnouncement` |
+| Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpBatchUnit*`, `MrpElementBomLine`, `MrpRecipeVersion*`, `MrpElectric*`, `MrpStock*`, `MrpSheetSyncLog`, ... |
+| Factory floor + planning | factory | `FactoryStation*`, `FactoryProduction*`, `FactoryPlanning*`, `FactoryDevice`, `FactoryCnc*`, `FactoryWorker`, `FactoryPallet*`, `FactoryModelPanelEffort`, `FactoryPanelOrder*` (the last four groups were runtime DDL in the Factory app until [add-factory-floor-tables.sql](../scripts/add-factory-floor-tables.sql)) |
 | RP spare parts / panels | rp | `RpRequest`, `RpLineItem`, `RpInternalProductionRow`, `RpSheetSyncOutbox`, `RpLifecycleEvent`, ... |
 | Clock-In | clock | clock-in / time-tracking models (see `scripts/add-clock-tables.sql`) |
-| Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink` |
+| Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink`, `TaskComment` |
 | Feature requests | requests | `FeatureRequest`, `FeatureRequestVote`, `FeatureRequestAttachment` (`FeatureRequestType`, `FeatureRequestImportance`) |
-| Physical booth inventory | inventory | `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
+| Partner stock | stock | `StockPartner`, `StockPartnerVisit` (stock quantities stay in the Ops Google Sheet) |
+| Physical booth inventory | inventory | `BoothFamily` and `ProductionBatch` (shared masters, see below), `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 
@@ -40,6 +44,12 @@ User ──< TeamMember >── Team
 All satellite domains foreign-key to the shared `User` / `Team` — never duplicate identity tables.
 Historical Sales priority recipient/actor IDs are the deliberate exception:
 their dated records survive account deletion and do not represent live access.
+Known departures recorded by the 5 November 2026 audit ([database-audit-2026-11.md](database-audit-2026-11.md)):
+`ClockWorker.userId` is optional, `AssemblyTeamMember` has no `User` link,
+`AssemblyPartner` and `StockPartner` carry their own credentials, and
+`Deal.createdByUserId`, `DealAuditLog.actorUserId`, `RpRequest.userId` (which
+holds an e-mail address) and the Factory `crewWorkerId*` columns are scalar ids
+without a relation.
 
 ### Team subgroups and user imports
 
@@ -100,7 +110,8 @@ There is **no Prisma migrations directory**. Follow [RELEASE_POLICY.md](../RELEA
 1. Edit `prisma/schema.prisma`; `npm run validate`.
 2. `npm run diff` — **read the generated SQL**. Anything with `DROP` needs to be understood before going further; a stale or trimmed schema will drop other apps' tables.
 3. Additive changes: `npm run db:push`.
-4. Destructive or ordering-sensitive changes: write an **idempotent** script in `scripts/` (wrap `CREATE TYPE` etc. in `DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL`), with an `-- Apply:` header, and run `npx prisma db execute --file scripts/<file>.sql --schema prisma/schema.prisma`. See `scripts/add-task-tables.sql` for the pattern.
+4. Destructive or ordering-sensitive changes: write an **idempotent** script in `scripts/` (wrap `CREATE TYPE` etc. in `DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL`), with an `-- Apply:` header, and run `npx prisma db execute --file scripts/<file>.sql --schema prisma/schema.prisma`. See `scripts/add-task-tables.sql` for the pattern, and `scripts/add-booth-identity-links.sql` for guarded foreign keys (`IF NOT EXISTS (SELECT 1 FROM pg_constraint ...)`) and NULL-only backfills.
+   CI runs `scripts/verify-sql-replay.sh`: the diff from the base branch must be additive, and the scripts listed in it, each applied twice to a database built from the base schema, must produce `prisma/schema.prisma` exactly. Add a new script to that list in the same PR.
 5. Commit the version/schema changes on `feat/*` and open a PR against `staging`. The release yes (staging → `main`) covers `main` promotion, the release tag and production application (`scripts/apply-sql.sh production`). After the approved package release, prepare dependency bumps through each consumer’s feature-to-staging workflow.
 
 Consumer apps must **never** run `db:push` themselves — their partial schemas would drop everyone else's tables.
@@ -352,7 +363,7 @@ Several domains mirror rows to Google Sheets or queue side effects; the outbox/s
 
 - `NotificationOutbox` / `NotificationDelivery` — satellites enqueue, gateway sends email.
 - `RpSheetSyncOutbox`, `RpSheetRowMap`, `SheetImportState`, `GatewaySheetRecord` — sheet sync state for rp / assembly / gateway.
-- `InventoryIntegrationEvent` — Sales/Factory transactional producer queue; Inventory consumes idempotently and owns stock/allocations. No physical booth FK points at recreatable Factory units or cascading Sales demand.
+- `InventoryIntegrationEvent` — Sales/Factory transactional producer queue; Inventory consumes idempotently and owns stock/allocations. No physical booth FK points at recreatable Factory units or cascading Sales demand; the links run the other way (Factory, MRP and Sales rows point at `InventoryUnit` with `ON DELETE SET NULL`).
 
 ## Inventory V1
 
@@ -369,6 +380,77 @@ bounds are not expressible in the Prisma schema.
 
 The [domain contract](inventory-v1.md) documents data ownership, transactions,
 integration identities, source-version reconciliation, migration and rollback.
+
+## Booth catalogue, batch master and booth identity
+
+Release 1 of the [cross-app data review](cross-app-data-review-2026-11.md)
+(section 6) joins the parallel copies of booth models, batches and physical
+booths without changing any app workflow. Everything is additive; every link
+column is nullable and every backfill fills NULLs only. Apply the four scripts
+in this order, each twice: [add-booth-family-catalog.sql](../scripts/add-booth-family-catalog.sql),
+[add-production-batch-master.sql](../scripts/add-production-batch-master.sql),
+[add-booth-identity-links.sql](../scripts/add-booth-identity-links.sql),
+[add-factory-floor-tables.sql](../scripts/add-factory-floor-tables.sql).
+
+**Booth catalogue.** `BoothFamily` (owner: inventory, read by every app) has one
+row per `BoothProductFamily`, keyed by the two-letter serial prefix:
+
+| code | family | name | factoryCode | mrpName | line |
+| --- | --- | --- | --- | --- | --- |
+| SO | SOHO | Soho | SO | Soho | Classic |
+| WS | WORKSTATION | Workstation | SW | Workstation | Classic |
+| C2 | CAMDEN_2 | Camden 2 | C2 | Camden 2 | Classic |
+| C4 | CAMDEN_4 | Camden 4 | C4 | Camden 4 | Classic |
+| H1 | HAVEN_ONE | Haven One | H1 | Haven One | Haven |
+| HF | HAVEN_FOCUS | Haven Focus | HF | Haven Focus | Haven |
+| H2 | HAVEN_2 | Haven Two | H2 | Haven Two | Haven |
+| H4 | HAVEN_4 | Haven Four | H4 | Haven Four | Haven |
+
+`BoothProductFamily` stays the key in the Sales and Inventory columns that use
+it; `BoothFamily.family` is unique, so those columns join the catalogue without
+migrating. `FactoryBoothModel.familyCode` and `MrpBoothModel.familyCode` are
+unique nullable FKs to `BoothFamily.code`, backfilled by `factoryCode` and by
+`lower(name)` = `mrpName`, `name` or one of the lower-case `aliases`
+("camden 7", "meavo two", "h.f", …); MRP's "Custom Batch" stays unlinked.
+`nameBg` is the label the Factory floor shows today. `ResourceBoothModel.family`
+copies Assembly's `boothModel` into the shared enum; the `BoothModel` enum is
+removed in release 3. Seed rows are insert-only, so names edited later survive a
+rerun. Versions (`BoothFamilyVersion`) follow in release 2.
+
+**Batch master.** `ProductionBatch` (owner: inventory) has one row per batch code
+(`AB193`, `KB134`, `VB202`), its `FactorySite` (the site master for
+`MrpWarehouse.siteId` and `InventoryFactory.siteId` too), optional family,
+month, planned quantity and dates, US flag and a `ProductionBatchStatus`
+(`PROPOSED`, `PLANNED`, `IN_PRODUCTION`, `PARTIALLY_READY`, `READY`,
+`CANCELLED`). `FactoryPlanningBatch`, `FactoryProductionBatch`,
+`MrpManufacturingBatch` and `InventoryBatch` each gain a unique nullable
+`productionBatchId` (`ON DELETE SET NULL`). The backfill creates master rows from
+planning batches first, then Factory production codes, then MRP names that are
+plain codes, then Inventory batch numbers; satellite MRP rows such as
+`AB-VB202/VB203` get no master row. The status is the most advanced state any
+copy reports; `versionCode` stays null until release 2. `sourceSystem` is
+`sheet` (with `sourceId` = the sheet row key `AKS:AB193`) or `inventory`. From
+release 1 the Inventory worker keeps the master in step with Factory's
+`plan.upsert` and `plan.status` events; from release 2 the Inventory app
+creates batches.
+
+**Booth identity.** `InventoryUnit` is the single physical booth. Its
+`serialNumber` equals the planning sheet's 5-digit booth id for every sheet-born
+booth, and app-born booths continue that series. `InventoryUnit` gains
+`productionBatchId` (`ON DELETE RESTRICT`) and `plannedSortOrder`. The other
+copies point at it with unique nullable links (`ON DELETE SET NULL`):
+`FactoryPlanningBooth.inventoryUnitId` (backfilled where
+`serialNumber = boothUniqueId::int`), `FactoryProductionBoothUnit.inventoryUnitId`
+(set by Factory's stable materialise step; no backfill),
+`MrpBatchUnit.inventoryUnitId` (backfilled from the id in `boothIdText`, e.g.
+`SO 11704 AB146`; rows that hold `TRUE` stay null) and
+`BoothUnit.inventoryUnitId`, which becomes a real foreign key. Inventory never
+points at the Factory, MRP or Sales copies.
+
+**Factory floor tables.** The ten tables and nine columns that the Factory app
+created at runtime are declared here as production has them, including the
+SQL-only indexes `FactoryPalletLine_combo_key` and
+`FactoryStationBreak_station_open_key`.
 
 ## Queries agents should reuse
 

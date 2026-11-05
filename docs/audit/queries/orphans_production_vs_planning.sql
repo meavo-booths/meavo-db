@@ -1,0 +1,1 @@
+SELECT count(*) AS production_batches, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "FactoryPlanningBatch" f WHERE f."batchCode" = p."batchCode")) AS in_planning, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "MrpManufacturingBatch" m WHERE m.name = p."batchCode")) AS in_mrp FROM "FactoryProductionBatch" p

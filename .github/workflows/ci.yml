@@ -16,8 +16,26 @@ jobs:
   verify:
     name: Validate schema
     runs-on: ubuntu-latest
+    services:
+      # Throwaway database for the SQL replay below; never a shared environment.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: meavo
+          POSTGRES_PASSWORD: meavo-ci-only
+          POSTGRES_DB: meavo_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meavo -d meavo_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The replay builds its database from the base commit's schema.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -32,6 +50,18 @@ jobs:
         env:
           DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
         run: npx prisma validate
+
+      # Additive-only diff from the base commit, then every script listed in
+      # scripts/verify-sql-replay.sh applied twice on a database built from the
+      # base schema; the result must equal prisma/schema.prisma.
+      - name: Additive diff and SQL replay
+        env:
+          DATABASE_URL: postgresql://meavo:meavo-ci-only@127.0.0.1:5432/meavo_ci?sslmode=disable
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          base="$BASE_SHA"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then base=HEAD^1; fi
+          scripts/verify-sql-replay.sh "$base"
 
       # `npm run diff` is deliberately not run here: it connects to the live
       # database, so it would require production credentials in CI. Review

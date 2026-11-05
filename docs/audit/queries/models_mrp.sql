@@ -1,0 +1,1 @@
+SELECT id, name, (SELECT count(*) FROM "MrpBoothElement" e WHERE e."boothModelId" = m.id) AS elements, (SELECT count(*) FROM "MrpManufacturingBatch" b WHERE b."boothModelId" = m.id) AS batches FROM "MrpBoothModel" m ORDER BY lower(name)

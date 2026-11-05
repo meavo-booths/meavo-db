@@ -1,0 +1,1 @@
+SELECT s.code AS site, b."productionYear" AS year, b."productionMonth" AS month, count(*) AS batches, sum((SELECT count(*) FROM "FactoryPlanningBooth" p WHERE p."planningBatchId" = b.id)) AS booths FROM "FactoryPlanningBatch" b JOIN "FactorySite" s ON s.id = b."siteId" GROUP BY 1,2,3 ORDER BY 1,2,3

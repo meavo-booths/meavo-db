@@ -1,0 +1,1 @@
+SELECT (SELECT count(*) FROM "DealContact") AS deal_contacts, (SELECT count(*) FROM "DealContact" d WHERE d.email IS NOT NULL AND EXISTS (SELECT 1 FROM "ClientContact" c WHERE lower(c.email) = lower(d.email))) AS deal_contacts_also_client_contacts, (SELECT count(*) FROM "ClientContact") AS client_contacts

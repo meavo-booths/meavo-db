@@ -1,0 +1,1 @@
+SELECT count(*) AS requests, count(*) FILTER (WHERE user_id LIKE '%@%') AS email_like, count(*) FILTER (WHERE user_id ~ '^c[a-z0-9]{20,}$') AS cuid_like, count(DISTINCT user_id) AS distinct_values FROM rp_requests
