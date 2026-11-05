@@ -13,6 +13,7 @@ Create `feat/`, `fix/`, or `chore/` branches from `staging` and open PRs explici
 - [ ] `npm run diff` output reviewed — no unexpected `DROP` statements (no test suite; this is the safety net)
 - [ ] Agent docs updated if you added a new domain section or changed the release workflow
 - [ ] Destructive steps shipped as idempotent `scripts/*.sql`, not through `db:push`
+- [ ] New `scripts/*.sql` listed in `scripts/verify-sql-replay.sh`; CI replays them twice from the base schema and requires the result to equal `prisma/schema.prisma`
 
 ## Branch naming and release path
 

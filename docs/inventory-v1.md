@@ -5,7 +5,10 @@ schema remains here in `meavo-db`; consumers only generate Prisma clients.
 Schema and SQL are additive. Apart from three nullable link columns on Sales
 `BoothUnit` that only Inventory writes (see "BoothUnit write-back"), they do not
 modify Sales, Factory production models, MRP recipes, gateway identity, existing
-stock, or serials.
+stock, or serials. Release 1 of the cross-app data review adds the shared booth
+catalogue, the production batch master and nullable identity links from the
+Factory, MRP and Sales copies (see "Booth catalogue, batch master and booth
+identity").
 
 ## Ownership and identities
 
@@ -14,15 +17,16 @@ stock, or serials.
 | Access | `InventoryAccess` grants one or more VIEWER, SALES, OPS_PRODUCT, WAREHOUSE, FACTORY or ADMIN roles to existing gateway `User` records. Gateway's APP_ACCESS card is a separate required entry gate, seeded in gateway. |
 | Warehouses | `InventoryWarehouse` is LOCAL or CENTRAL; `InventoryWarehouseServiceRule` matches country, optional region and postcode prefix and records priority/lead time. A deal's preferred warehouse is an override of ranking, not electrical eligibility. |
 | Physical placement | Optional `InventorySpot`, named `InventoryPallet`, and `InventoryPalletContent` support mixed pallets and booths split over several pallets. A package has a durable `(unitId, packageKey)` identity. Composite FKs keep a pallet's spot in its actual warehouse. |
-| Production origin | `InventoryFactory` and `InventoryBatch` retain factory and manually entered batch number. The batch/factory composite FK prevents a booth claiming the wrong factory. Source keys link upstream records without destructive cascades. |
+| Production origin | `InventoryFactory` and `InventoryBatch` retain factory and manually entered batch number. The batch/factory composite FK prevents a booth claiming the wrong factory. Source keys link upstream records without destructive cascades. `InventoryFactory.siteId` links a factory to its `FactorySite`; `InventoryBatch.productionBatchId` and `InventoryUnit.productionBatchId` link to the `ProductionBatch` master, which replaces `InventoryBatch` in release 3. |
+| Booth catalogue | `BoothFamily` is one row per `BoothProductFamily`, keyed by the serial prefix (`SO WS C2 C4 H1 HF H2 H4`), with the canonical English name, the Factory label, `factoryCode` (SW for Workstation), `mrpName` and aliases. Every app reads it; Inventory owns it. |
 | Compatibility | `BoothProductFamily` and `BoothUnitStatus` reuse Sales' canonical enums. `InventoryFinish` represents an exact reviewed finish, including custom specifications. `InventoryCatalogMapping` links source model/finish IDs and recipe revisions explicitly; with `sourceKind="market"` it maps a Sales `Deal.market` value to a delivery `countryCode` so automatic allocation can pick a warehouse. Multi-country markets stay unmapped. |
-| Physical booth | `InventoryUnit` exists before serial assignment or a customer. Production/transit/receipt update this same record. Factory source keys must be permanent handover keys, never regenerated panel/production-unit IDs. |
+| Physical booth | `InventoryUnit` exists before serial assignment or a customer. Production/transit/receipt update this same record. Factory source keys must be permanent handover keys, never regenerated panel/production-unit IDs. It is the single booth master: `FactoryPlanningBooth`, `FactoryProductionBoothUnit`, `MrpBatchUnit` and `BoothUnit` point at it through unique nullable `inventoryUnitId` columns (`ON DELETE SET NULL`); `plannedSortOrder` keeps the booth's position in its batch. |
 | Commercial demand | `InventoryDemand` mirrors a stable quote/deal identity and source version; `InventoryDemandLine` stores quantity and compatibility. Slot `1..quantity` identifies each requested booth. Neither has a cascading FK to Sales. Retire removed lines with `active=false`. The demand also mirrors the deal's `paymentStatus`, `paymentTerms`, `deliveryType` and `deliveryAddress` at the last sync and stores Inventory's computed `paymentCleared` gate; `shipDirect` is set in Inventory and never overwritten by sync. |
 | Advisory matching | `InventorySuggestion` stores demand version, proposed unit versions, explanations/preparation, and shortages as a JSON snapshot. Saving a suggestion never locks stock, allocates a booth, or issues a serial. |
 | Allocations | `InventoryAllocation` connects one booth to one demand-line slot. Only ACTIVE rows consume stock; SQL guarantees one ACTIVE row per booth and per demand-line slot. `kind` is QUOTE_HOLD (explicit rep request), DEAL_HOLD (automatic, won but unpaid, expires within seven days) or COMMITTED (paid, no expiry). `origin` AUTOMATIC rows are pending while `confirmedAt` is null; MANUAL rows are confirmed at creation (SQL check). Every confirmed change is audited. |
 | Export lines | `InventoryExportLine` is one row per allocation on the weekly export list: typed export week, workshop note, spare parts, labels-printed and loaded timestamps, and the frozen destination (serving warehouse or direct delivery address). A composite FK to `(allocationId, unitId)` keeps the line on its allocation's booth. The pallet number is `InventoryPalletContent`, not a column here. |
-| Sales booth unit link | `BoothUnit.inventoryUnitId` (unique), `serialCode` and `inventorySyncedAt` are written only by Inventory when an allocation links a physical booth to that Sales demand row; Sales shows them read-only. No FK, so Sales works without the Inventory tables. |
-| Serials | `InventorySerialSequence` has one `global` row whose `nextNumber` starts at 40000. Unit serial number and full serial are independently unique. Legacy prefixes/numbers are retained; new Workstation serials use WS. |
+| Sales booth unit link | `BoothUnit.inventoryUnitId` (unique), `serialCode` and `inventorySyncedAt` are written only by Inventory when an allocation links a physical booth to that Sales demand row; Sales shows them read-only. Since `add-booth-identity-links.sql`, `inventoryUnitId` is a foreign key to `InventoryUnit` with `ON DELETE SET NULL`. |
+| Serials | `InventorySerialSequence` has one `global` row whose `nextNumber` starts at 40000. Unit serial number and full serial are independently unique. Legacy prefixes/numbers are retained; new Workstation serials use WS. From the cross-app release 1 Inventory change, `serialNumber` equals the planning sheet's 5-digit booth id and app-born booths continue that series (see below); the schema already allows it (`serialNumber` 0 to 99999). |
 | Transfers | `InventoryTransfer` manifests and `InventoryTransferItem` receipt quantities distinguish dispatch from partial/complete receipt. A transfer item targets a complete unpackaged booth or an exact package, never both. |
 | Preparation | `InventoryPreparationTask` records socket fitting/checking/picking. Composite FK ensures the task's allocation belongs to the same physical unit. Completed preparation stays with that booth. |
 | History/retries | `InventoryAuditEvent` stores before/after, reason, shared User actor and name snapshot; `InventoryOperation` stores a request hash and atomic result for replay. |
@@ -110,6 +114,53 @@ finish, keeps an existing link in place, and clears stale links before setting
 new ones so the unique index never fails during a swap. It never touches the
 `Deal` row, so `Deal.updatedAt` and source versions stay stable. Rows without an
 active allocation are reset to PLANNED with no link.
+
+## Booth catalogue, batch master and booth identity
+
+Release 1 of the [cross-app data review](cross-app-data-review-2026-11.md) adds
+three masters that Inventory owns and every other app reads. The schema and the
+backfills are in this repository; the Inventory behaviour listed under
+"Inventory duties" ships in a separate Inventory PR.
+
+**Catalogue.** `BoothFamily` maps each `BoothProductFamily` to its serial prefix
+(`code`), canonical name ("Haven One", "Haven Two", "Haven Four", "Camden 2",
+"Camden 4"), Factory label, Factory code (`SW` for Workstation, whose serial
+prefix stays `WS`), MRP model name and lower-case aliases. It replaces the
+hardcoded family maps in each app (Inventory `FAMILY`, `SERIAL_PREFIX` and the
+labels in `src/lib/format.ts`). Rows are seeded insert-only by
+`add-booth-family-catalog.sql`; Settings may edit names and aliases later.
+
+**Batch master.** `ProductionBatch` holds one row per batch code with its
+`FactorySite`, family, month, planned quantity and dates, US flag, status
+(`PROPOSED`, `PLANNED`, `IN_PRODUCTION`, `PARTIALLY_READY`, `READY`,
+`CANCELLED`), `sourceSystem` (`sheet` or `inventory`) and `sourceId` (the sheet
+row key `AKS:AB193`, or the `InventoryBatch` id for a batch first seen in
+Inventory). `add-production-batch-master.sql` seeds it from Factory planning,
+then Factory production, then MRP names that are plain codes, then
+`InventoryBatch` numbers, and links the four copies by code. A batch whose site
+cannot be resolved, a satellite MRP row (`AB-VB202/VB203`) and an Inventory batch
+number that is not a plain code stay unlinked.
+
+**Booth identity rule.** `InventoryUnit.serialNumber` is the permanent booth
+number and equals the planning sheet's 5-digit booth id for every sheet-born
+booth (5,515 to 13,315 in production on 5 November 2026). App-born booths
+continue the same series; the next number and whether cancelled booths keep
+theirs are open decisions in the review (section 7). `serialCode` keeps the
+format `<prefix> <number> <batch>`; sheet rows that say `SW` become `WS`.
+`add-booth-identity-links.sql` links `FactoryPlanningBooth` where
+`serialNumber = boothUniqueId::int`, `MrpBatchUnit` by the id in `boothIdText`
+when both rows agree on the master batch, and sets `InventoryUnit.productionBatchId`
+from the unit's `InventoryBatch` or its planning booth. No existing unit or serial
+changes.
+
+**Inventory duties (consumer PR).** Read `BoothFamily` in `getCatalog`; handle
+Factory's `plan.upsert` and `plan.status` events in the worker by upserting
+`ProductionBatch` and creating PLANNED units through `planBatch` and
+`planBooths` (serial = booth id, `plannedSortOrder` = sheet order,
+`expectedReadyAt` = batch end, voltage from the US flag); resolve a Factory
+handover by `inventoryUnitId` first and the legacy `factoryUnitKey` second; add
+an "Adopt planning booths" admin action. Until then the master is maintained only
+by the backfill.
 
 ## Required transaction behavior
 
@@ -205,6 +256,15 @@ idempotent table/type/index/constraint creation, and contains no data seeds or
 destructive DDL; the only existing-domain ALTERs are the nullable `BoothUnit`
 link columns. They rely on existing `User`, `BoothProductFamily`,
 `BoothUnitStatus`, `PaymentStatus`, `PaymentTerms` and `DeliveryType` objects.
+
+The cross-app release 1 scripts follow, in this order and each twice:
+`add-booth-family-catalog.sql`, `add-production-batch-master.sql`,
+`add-booth-identity-links.sql`, `add-factory-floor-tables.sql`. Unlike the
+Inventory V1 scripts they also backfill data, but only into the new tables and
+the new NULL link columns, and never overwrite a value. `add-booth-identity-links.sql`
+stops with an error, and changes nothing, if a `BoothUnit.inventoryUnitId` has no
+`InventoryUnit`. CI replays all nine scripts twice on a database built from the
+base schema (`scripts/verify-sql-replay.sh`).
 
 Before application, inspect the actual target provider/project/database branch,
 compare its schema with the reviewed canonical schema, and verify non-production

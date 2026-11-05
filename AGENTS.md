@@ -72,6 +72,7 @@ npm run validate     # prisma validate (needs DATABASE_URL in .env)
 npm run diff         # SQL preview: live DB vs schema.prisma
 npm run db:push      # confirm isolated test DB; production only via an approved release
 npm run studio       # browse the live DB
+DATABASE_URL=<disposable localhost DB> scripts/verify-sql-replay.sh origin/staging   # what CI runs: additive diff + scripts replayed twice
 # no dev / test / lint / build — this is a schema-only package
 ```
 
