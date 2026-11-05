@@ -21,6 +21,10 @@ Every app in the org consumes this package; none may alter the schema themselves
 | `meavo-rp` | Owns RP spare-parts section (legacy snake_case tables via `@@map`) |
 | `meavo-clock` | Owns Clock-In section |
 | `meavo-tasks` | Owns task management section |
+| `meavo-tickets` | Owns feature requests section (requests.meavo.app) |
+| `meavo-stock` | Owns partner stock section (stock.meavo.app) |
+| `meavo-inventory` | Owns physical booth inventory section (inventory.meavo.app); also writes three `BoothUnit` columns |
+| `zeron-material-checker` | Keeps its own Prisma schema with a read-only subset of the identity tables plus its `Zeron*` tables; not a consumer of this package |
 | `meavo-agent-templates` | Org-wide standards these docs follow |
 
 ## Stack decisions

@@ -1,6 +1,6 @@
 # Data model — meavo-db
 
-The canonical schema lives **in this repo**: `prisma/schema.prisma` (~125 models, ~54 enums). This is the only repo allowed to alter the shared MEAVO Neon Postgres database; every app repo consumes it read-only via the `@meavo/db` git dependency and runs `prisma generate` only.
+The canonical schema lives **in this repo**: `prisma/schema.prisma` (231 models, 97 enums at v0.100.0; the per-table inventory with production row counts is [audit/tables-2026-11.csv](audit/tables-2026-11.csv)). This is the only repo allowed to alter the shared MEAVO Neon Postgres database; every app repo consumes it read-only via the `@meavo/db` git dependency and runs `prisma generate` only.
 
 Pinned version: apps pin a git tag, e.g. `"@meavo/db": "git+https://github.com/meavo-booths/meavo-db.git#v0.13.0"` — current version in `package.json`.
 
@@ -11,19 +11,23 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Schema section | Owner app | Representative models |
 |----------------|-----------|-----------------------|
 | Identity & access | gateway | `User`, `Account`, `Team`, `TeamSubgroup`, `TeamMember`, `GatewayUserImportReceipt`, `ToolCard`, `ToolCardAccess`, `LoginThrottle` |
-| HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `DocumentTemplate*`, `GeneratedDocument`, `LibraryAsset`, `GatewaySheetRecord` |
+| HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `EmployeeCommission`, `DocumentTemplate*`, `GeneratedDocument`, `SignatureRequest`, `LibraryAsset`, `LibraryVideo`, `UsefulLink`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner` (incl. `phone`), `Questionnaire*`, `QuestionnaireSubmission` (incl. `notes`), `Resource*`, `SheetImportState` |
 | Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `ClientMergeAudit`, `Deal`, `DealLabel`, `DealLabelAssignment`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
+| Sales payments | sales | `SalesPayment`, `SalesPaymentWindow`, `SalesPaymentSync` |
+| HubSpot integration | sales | `HubSpotMarketingSync`, `HubSpotMarketingForm`, `HubSpotMarketingSubmission`, `HubSpotLostReason`, `HubSpotDealSnapshot`, `HubSpotCampaignSyncState` |
 | Sales daily priorities | sales | `SalesRepIdentity`, `SalesPrioritySettings`, `SalesPriorityRun`, `SalesPriorityWorkItem`, `SalesOpportunitySnapshot`, `SalesCrmSnapshot`, `SalesCompanyResearch`, `SalesPriorityRecommendation`, `SalesPriorityFeedback` |
-| Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroIntegrationSettings` |
-| Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting` |
-| Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpElementBomLine`, ... |
+| Sales forecasts | sales | `SalesForecastSettings`, `SalesForecastRun`, `SalesForecastManualRun`, `SalesOpportunityForecastRun`, `SalesOpportunityForecastItem`, `SalesOpportunityQualification`, `SalesOpportunityQualificationEvent` |
+| Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroMarketTaxAccountMapping`, `XeroUsStateMapping`, `XeroIntegrationSettings` |
+| Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting`, `Notification`, `UserNotificationPreference`, `AppAnnouncement` |
+| Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpBatchUnit*`, `MrpElementBomLine`, `MrpRecipeVersion*`, `MrpElectric*`, `MrpStock*`, `MrpSheetSyncLog`, ... |
 | Factory floor + planning | factory | `FactoryStation*`, `FactoryProduction*`, `FactoryPlanning*`, `FactoryDevice`, `FactoryCnc*` |
 | RP spare parts / panels | rp | `RpRequest`, `RpLineItem`, `RpInternalProductionRow`, `RpSheetSyncOutbox`, `RpLifecycleEvent`, ... |
 | Clock-In | clock | clock-in / time-tracking models (see `scripts/add-clock-tables.sql`) |
-| Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink` |
+| Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink`, `TaskComment` |
 | Feature requests | requests | `FeatureRequest`, `FeatureRequestVote`, `FeatureRequestAttachment` (`FeatureRequestType`, `FeatureRequestImportance`) |
+| Partner stock | stock | `StockPartner`, `StockPartnerVisit` (stock quantities stay in the Ops Google Sheet) |
 | Physical booth inventory | inventory | `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
@@ -40,6 +44,12 @@ User ──< TeamMember >── Team
 All satellite domains foreign-key to the shared `User` / `Team` — never duplicate identity tables.
 Historical Sales priority recipient/actor IDs are the deliberate exception:
 their dated records survive account deletion and do not represent live access.
+Known departures recorded by the 5 November 2026 audit ([database-audit-2026-11.md](database-audit-2026-11.md)):
+`ClockWorker.userId` is optional, `AssemblyTeamMember` has no `User` link,
+`AssemblyPartner` and `StockPartner` carry their own credentials, and
+`Deal.createdByUserId`, `DealAuditLog.actorUserId`, `RpRequest.userId` (which
+holds an e-mail address) and the Factory `crewWorkerId*` columns are scalar ids
+without a relation.
 
 ### Team subgroups and user imports
 
