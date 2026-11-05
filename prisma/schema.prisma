@@ -991,6 +991,9 @@ model ResourceFile {
 model ResourceBoothModel {
   resourceId String
   boothModel BoothModel
+  /// Same value as boothModel in the shared BoothProductFamily enum, backfilled by
+  /// scripts/add-booth-family-catalog.sql. The BoothModel enum retires in release 3.
+  family     BoothProductFamily?
 
   resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
@@ -1801,6 +1804,7 @@ model BoothUnit {
   /// Written by Inventory only (scripts/add-booth-unit-inventory-link.sql): the
   /// physical InventoryUnit allocated to this demand row, its serial, and when
   /// status/location were last synced. Null until an allocation is made.
+  /// Foreign key with ON DELETE SET NULL since scripts/add-booth-identity-links.sql.
   inventoryUnitId   String?   @unique
   serialCode        String?
   inventorySyncedAt DateTime?
@@ -1809,6 +1813,7 @@ model BoothUnit {
 
   deal    Deal    @relation(fields: [dealId], references: [dealId], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  inventoryUnit InventoryUnit? @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
 
   @@index([dealId])
   @@index([status])
@@ -2446,7 +2451,6 @@ enum MrpManufacturingBatchStatus {
   cancelled
 }
 
-
 enum MrpRecipeVersionStatus {
   draft
   ready
@@ -2665,11 +2669,18 @@ model MrpWarehouse {
   name      String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  /// Factory site this warehouse belongs to (aksakovo -> AKS, kazanlak -> KAZ,
+  /// varna -> VAR; scripts/add-production-batch-master.sql). Null for stores
+  /// that are not a factory site (top, WH1, WH2).
+  siteId    String?
 
+  site                 FactorySite?            @relation(fields: [siteId], references: [id], onDelete: SetNull)
   manufacturingBatches MrpManufacturingBatch[]
   stockMovements       MrpStockMovement[]
   stockBalances        MrpStockBalance[]
   inventoryCounts      MrpInventoryCount[]
+
+  @@index([siteId])
 }
 
 /// Booth product line synced from Google Sheets (Soho, Camden 4, …).
@@ -2678,7 +2689,11 @@ model MrpBoothModel {
   name      String   @unique
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  /// BoothFamily.code, matched by name or alias (scripts/add-booth-family-catalog.sql).
+  /// Null for rows that are not a booth family, such as "Custom Batch".
+  familyCode String?  @unique
 
+  family               BoothFamily?              @relation(fields: [familyCode], references: [code], onDelete: SetNull)
   elements             MrpBoothElement[]
   manufacturingBatches MrpManufacturingBatch[]
   exceptionScopes      MrpRecipeExceptionScope[]
@@ -2794,7 +2809,6 @@ model MrpElementBomLine {
   @@index([recipeVersionId])
 }
 
-
 /// Reusable electric sub-recipe (loom / kit). Not a packing-panel element.
 model MrpElectricModule {
   id        String   @id @default(cuid())
@@ -2864,7 +2878,6 @@ model MrpElectricAssemblyLine {
   @@unique([assemblyId, moduleId])
   @@index([moduleId])
 }
-
 
 /// Published recipe snapshot for a booth model (V1.1, V1.2, Legacy, …).
 model MrpRecipeVersion {
@@ -3005,10 +3018,14 @@ model MrpManufacturingBatch {
   lastSyncedAt       DateTime?
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
+  /// Master batch with the same code (scripts/add-production-batch-master.sql).
+  /// Null for satellite rows such as "AB-VB202/VB203".
+  productionBatchId  String?                     @unique
 
   boothModel        MrpBoothModel?                 @relation(fields: [boothModelId], references: [id], onDelete: SetNull)
   warehouse         MrpWarehouse?                  @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   recipeVersion     MrpRecipeVersion?              @relation(fields: [recipeVersionId], references: [id], onDelete: SetNull)
+  productionBatch   ProductionBatch?              @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
   units             MrpBatchUnit[]
   exceptionLinks    MrpRecipeExceptionBatchLink[]
   versionBatchLinks MrpRecipeVersionBatchLink[]
@@ -3027,8 +3044,12 @@ model MrpBatchUnit {
   progressPct          Decimal? @db.Decimal(6, 2)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  /// Physical booth whose serialNumber is the 5-digit id in boothIdText
+  /// (scripts/add-booth-identity-links.sql). Null while boothIdText holds no id.
+  inventoryUnitId      String?  @unique
 
   manufacturingBatch MrpManufacturingBatch @relation(fields: [manufacturingBatchId], references: [id], onDelete: Cascade)
+  inventoryUnit      InventoryUnit?        @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
   elements           MrpBatchUnitElement[]
 
   @@unique([manufacturingBatchId, sheetRowIndex])
@@ -3294,6 +3315,14 @@ model FactoryStation {
   taskOverrides     FactoryScheduleTaskOverride[]
   panelScrapReports FactoryPanelScrapReport[]
   stationIssues     FactoryStationIssue[]
+  // Factory floor tables declared by scripts/add-factory-floor-tables.sql.
+  assignments            FactoryStationAssignment[]
+  breaks                 FactoryStationBreak[]
+  lastPallets            FactoryPallet[]
+  palletHolds            FactoryPalletHold[]
+  panelOrders            FactoryPanelOrder[]
+  panelOrderEvents       FactoryPanelOrderEvent[]
+  panelOrderScrapReports FactoryPanelOrderScrapReport[]
 }
 
 model FactoryBoothModel {
@@ -3304,12 +3333,17 @@ model FactoryBoothModel {
   /// Planning credit weight (SO=1, C2=2, H2=2.3, …). Nullable until seeded.
   credits   Decimal? @db.Decimal(6, 2)
   createdAt DateTime @default(now())
+  /// BoothFamily.code matched by BoothFamily.factoryCode (scripts/add-booth-family-catalog.sql);
+  /// the Factory code SW maps to the catalogue code WS.
+  familyCode String?  @unique
 
+  family            BoothFamily?                       @relation(fields: [familyCode], references: [code], onDelete: SetNull)
   bomRequirements   FactoryStationElementRequirement[]
   productionBatches FactoryProductionBatch[]
   planningBatches   FactoryPlanningBatch[]
   planningBooths    FactoryPlanningBooth[]
   panelScrapReports FactoryPanelScrapReport[]
+  panelEfforts      FactoryModelPanelEffort[]
 }
 
 /// Elements (parts).
@@ -3328,6 +3362,9 @@ model FactoryElement {
   taskOverrides    FactoryScheduleTaskOverride[]
   panelScrapReports FactoryPanelScrapReport[]
   stationIssues     FactoryStationIssue[]
+  pallets           FactoryPallet[]
+  palletLines       FactoryPalletLine[]
+  panelEfforts      FactoryModelPanelEffort[]
 }
 
 /// BOM: which station produces which element per booth model, incl. the
@@ -3344,6 +3381,8 @@ model FactoryStationElementRequirement {
   dependsOnElementId String?
   minDelayMinutes    Int     @default(0)
   displayNameBg      String?
+  /// Planner effort weight per element (scripts/add-factory-floor-tables.sql).
+  effortUnits        Int?
 
   boothModel       FactoryBoothModel @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
   station          FactoryStation    @relation(fields: [stationId], references: [id], onDelete: Cascade)
@@ -3366,6 +3405,8 @@ model FactoryColor {
   workSessions     FactoryWorkSession[]
   panelScrapReports FactoryPanelScrapReport[]
   stationIssues     FactoryStationIssue[]
+  pallets           FactoryPallet[]
+  palletLines       FactoryPalletLine[]
 }
 
 /// Booth options (Privacy Foil, etc.)
@@ -3390,8 +3431,13 @@ model FactoryProductionBatch {
   scheduleVersion Int                @default(1)
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+  /// Reason shown while the batch is paused (scripts/add-factory-floor-tables.sql).
+  pauseNote         String?
+  /// Master batch with the same code (scripts/add-production-batch-master.sql).
+  productionBatchId String?            @unique
 
   boothModel       FactoryBoothModel             @relation(fields: [boothModelId], references: [id])
+  productionBatch   ProductionBatch?              @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
   colors           FactoryProductionBatchColor[]
   workItems        FactoryStationWorkItem[]
   productionEvents FactoryProductionEvent[]
@@ -3400,6 +3446,8 @@ model FactoryProductionBatch {
   taskOverrides    FactoryScheduleTaskOverride[]
   panelScrapReports FactoryPanelScrapReport[]
   stationIssues     FactoryStationIssue[]
+  pallets           FactoryPallet[]
+  palletLines       FactoryPalletLine[]
 
   @@index([status])
 }
@@ -3428,8 +3476,12 @@ model FactoryProductionBoothUnit {
   isUs         Boolean @default(false)
   notes        String?
   status       String  @default("active")
+  /// Physical booth for this slot, set by the stable materialise step
+  /// (scripts/add-booth-identity-links.sql adds the column; no backfill).
+  inventoryUnitId String? @unique
 
   batchColor       FactoryProductionBatchColor        @relation(fields: [batchColorId], references: [id], onDelete: Cascade)
+  inventoryUnit    InventoryUnit?                     @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
   options          FactoryProductionBoothUnitOption[]
   workItems        FactoryStationWorkItem[]
   productionEvents FactoryProductionEvent[]
@@ -3498,6 +3550,15 @@ model FactoryProductionEvent {
   workSessionId String?
   syncedAt      DateTime?
   createdAt     DateTime  @default(now())
+  // Kiosk columns declared by scripts/add-factory-floor-tables.sql.
+  palletId       String?
+  cycleStartedAt DateTime?
+  cycleSeconds   Int?
+  cycleKind      String?
+  source         String?
+  /// FactoryWorker ids of the crew; scalar on purpose, as in production.
+  crewWorkerId1  String?
+  crewWorkerId2  String?
 
   station     FactoryStation              @relation(fields: [stationId], references: [id])
   batch       FactoryProductionBatch      @relation(fields: [batchId], references: [id])
@@ -3505,10 +3566,15 @@ model FactoryProductionEvent {
   color       FactoryColor?               @relation(fields: [colorId], references: [id])
   boothUnit   FactoryProductionBoothUnit? @relation(fields: [boothUnitId], references: [id])
   workSession      FactoryWorkSession?         @relation(fields: [workSessionId], references: [id])
+  pallet           FactoryPallet?              @relation(fields: [palletId], references: [id], onDelete: SetNull)
   kioskScrapReport FactoryPanelScrapReport?
 
   @@index([stationId, recordedAt(sort: Desc)])
   @@index([batchId])
+  @@index([palletId])
+  @@index([source, recordedAt])
+  @@index([crewWorkerId1])
+  @@index([crewWorkerId2])
 }
 
 model FactoryWorkSession {
@@ -3599,9 +3665,210 @@ model FactoryCncDailySummary {
   @@unique([stationId, summaryDate])
 }
 
+// Floor tables that the Factory app used to create at runtime, declared the way
+// production has them (scripts/add-factory-floor-tables.sql). That script also
+// holds two SQL-only unique indexes Prisma cannot express:
+// FactoryPalletLine_combo_key (expression) and FactoryStationBreak_station_open_key (partial).
+
+/// Source of a panel order: an RP request, one RP line, or an IP request.
+enum FactoryPanelOrderSourceKind {
+  rp
+  rp_line
+  ip
+}
+
+/// Kiosk worker identified by a PIN; not a gateway User.
+model FactoryWorker {
+  id        String   @id @default(cuid())
+  nameBg    String
+  pinHash   String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  assignment FactoryStationAssignment?
+
+  @@index([isActive, sortOrder])
+}
+
+/// Worker currently signed in to a station slot; a worker holds one slot at most.
+model FactoryStationAssignment {
+  id         String   @id @default(cuid())
+  stationId  String
+  workerId   String   @unique
+  slot       Int
+  assignedAt DateTime @default(now())
+
+  station FactoryStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  worker  FactoryWorker  @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@unique([stationId, slot])
+  @@index([stationId])
+}
+
+/// Physical pallet of finished panels.
+model FactoryPallet {
+  id                String    @id @default(cuid())
+  code              String    @unique
+  elementId         String?
+  batchId           String?
+  colorId           String?
+  qty               Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+  location          String    @default("aksakovo")
+  readyForTransport Boolean   @default(false)
+  readyAt           DateTime?
+  lastUsedAt        DateTime?
+  lastStationId     String?
+
+  element          FactoryElement?          @relation(fields: [elementId], references: [id], onDelete: SetNull)
+  batch            FactoryProductionBatch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  color            FactoryColor?            @relation(fields: [colorId], references: [id], onDelete: SetNull)
+  lastStation      FactoryStation?          @relation(fields: [lastStationId], references: [id], onDelete: SetNull)
+  lines            FactoryPalletLine[]
+  holds            FactoryPalletHold[]
+  productionEvents FactoryProductionEvent[]
+
+  @@index([elementId])
+}
+
+/// One element × batch × colour quantity on a mixed pallet. Unique on
+/// (palletId, elementId, coalesce(batchId, ''), coalesce(colorId, '')) in SQL only.
+model FactoryPalletLine {
+  id        String   @id @default(cuid())
+  palletId  String
+  elementId String
+  batchId   String?
+  colorId   String?
+  qty       Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  pallet  FactoryPallet           @relation(fields: [palletId], references: [id], onDelete: Cascade)
+  element FactoryElement          @relation(fields: [elementId], references: [id], onDelete: Cascade)
+  batch   FactoryProductionBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  color   FactoryColor?           @relation(fields: [colorId], references: [id], onDelete: SetNull)
+
+  @@index([palletId])
+}
+
+/// A station's claim on a pallet while it loads it.
+model FactoryPalletHold {
+  id        String   @id @default(cuid())
+  palletId  String
+  stationId String
+  claimedAt DateTime @default(now())
+
+  pallet  FactoryPallet  @relation(fields: [palletId], references: [id], onDelete: Cascade)
+  station FactoryStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@unique([palletId, stationId], map: "FactoryPalletHold_pallet_station_key")
+  @@index([palletId])
+}
+
+/// Planner effort per booth model and element. The production foreign keys
+/// have no ON UPDATE action, hence onUpdate: NoAction.
+model FactoryModelPanelEffort {
+  id           String @id @default(cuid())
+  boothModelId String
+  elementId    String
+  effortUnits  Int?
+
+  boothModel FactoryBoothModel @relation(fields: [boothModelId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  element    FactoryElement    @relation(fields: [elementId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([boothModelId, elementId])
+}
+
+/// Station break; at most one open break (endedAt null) per station, enforced
+/// by the SQL-only partial index FactoryStationBreak_station_open_key.
+model FactoryStationBreak {
+  id        String    @id @default(cuid())
+  stationId String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  station FactoryStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@index([stationId, startedAt])
+}
+
+/// Spare-panel order cut for an RP or IP request.
+model FactoryPanelOrder {
+  id           String                      @id @default(cuid())
+  sourceKind   FactoryPanelOrderSourceKind
+  sourceId     String
+  sourceNum    String
+  stationId    String?
+  sortOrder    Int                         @default(0)
+  scheduleNote String?
+  qtyRequired  Int                         @default(1)
+  qtyGood      Int                         @default(0)
+  qtyScrap     Int                         @default(0)
+  withdrawnAt  DateTime?
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @default(now()) @updatedAt
+
+  station      FactoryStation?                @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  events       FactoryPanelOrderEvent[]
+  scrapReports FactoryPanelOrderScrapReport[]
+
+  @@unique([sourceKind, sourceId])
+  @@index([stationId, sortOrder])
+  @@index([withdrawnAt])
+}
+
+/// Kiosk event on a panel order (idempotent on clientEventId).
+model FactoryPanelOrderEvent {
+  id            String    @id @default(cuid())
+  panelOrderId  String
+  stationId     String
+  qtyGood       Int       @default(0)
+  qtyScrap      Int       @default(0)
+  recordedAt    DateTime  @default(now())
+  clientEventId String    @unique
+  scrapNote     String?
+  syncedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  panelOrder  FactoryPanelOrder             @relation(fields: [panelOrderId], references: [id], onDelete: Cascade)
+  station     FactoryStation                @relation(fields: [stationId], references: [id], onDelete: Restrict)
+  scrapReport FactoryPanelOrderScrapReport?
+
+  @@index([panelOrderId, recordedAt(sort: Desc)])
+  @@index([stationId, recordedAt(sort: Desc)])
+}
+
+/// Scrap reported on a panel order event, approved or rejected by a manager.
+model FactoryPanelOrderScrapReport {
+  id                String                   @id @default(cuid())
+  panelOrderId      String
+  panelOrderEventId String                   @unique
+  stationId         String?
+  qty               Int                      @default(1)
+  notes             String?
+  status            FactoryScrapReportStatus @default(pending)
+  resolvedAt        DateTime?
+  resolvedByUserId  String?
+  resolutionNote    String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @default(now()) @updatedAt
+
+  panelOrder      FactoryPanelOrder      @relation(fields: [panelOrderId], references: [id], onDelete: Cascade)
+  panelOrderEvent FactoryPanelOrderEvent @relation(fields: [panelOrderEventId], references: [id], onDelete: Cascade)
+  station         FactoryStation?        @relation(fields: [stationId], references: [id], onDelete: SetNull)
+
+  @@index([panelOrderId, status])
+  @@index([resolvedAt, createdAt])
+  @@index([stationId])
+}
+
 // ---- Factory planning (owner: factory) ----
 
 /// Physical factory site (AKS / VAR / KAZ) with its planning spreadsheet.
+/// Site master for ProductionBatch, MrpWarehouse and InventoryFactory.
 model FactorySite {
   id            String   @id @default(cuid())
   code          String   @unique
@@ -3612,6 +3879,9 @@ model FactorySite {
   planningBatches FactoryPlanningBatch[]
   importRuns      FactoryPlanningImportRun[]
   planningMonths  FactoryPlanningMonth[]
+  productionBatches  ProductionBatch[]
+  mrpWarehouses      MrpWarehouse[]
+  inventoryFactories InventoryFactory[]
 }
 
 model FactoryBoothVersionCode {
@@ -3663,11 +3933,14 @@ model FactoryPlanningBatch {
   productionYear          Int?
   createdAt               DateTime                   @default(now())
   updatedAt               DateTime                   @updatedAt
+  /// Master batch with the same code (scripts/add-production-batch-master.sql).
+  productionBatchId       String?                    @unique
 
   site                  FactorySite                   @relation(fields: [siteId], references: [id])
   model                 FactoryBoothModel?            @relation(fields: [modelCode], references: [code])
   boothVersionCode      FactoryBoothVersionCode?      @relation(fields: [boothVersionCodeId], references: [id])
   batchProductionOption FactoryBatchProductionOption? @relation(fields: [batchProductionOptionId], references: [id])
+  productionBatch       ProductionBatch?              @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
   booths                FactoryPlanningBooth[]
 
   @@index([siteId])
@@ -3687,8 +3960,12 @@ model FactoryPlanningBooth {
   sortOrder               Int                         @default(0)
   createdAt               DateTime                    @default(now())
   updatedAt               DateTime                    @updatedAt
+  /// Physical booth whose serialNumber equals boothUniqueId
+  /// (scripts/add-booth-identity-links.sql).
+  inventoryUnitId         String?                     @unique
 
   planningBatch         FactoryPlanningBatch          @relation(fields: [planningBatchId], references: [id], onDelete: Cascade)
+  inventoryUnit         InventoryUnit?                @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
   model                 FactoryBoothModel?            @relation(fields: [modelCode], references: [code])
   boothVersionCode      FactoryBoothVersionCode?      @relation(fields: [boothVersionCodeId], references: [id])
   boothProductionOption FactoryBoothProductionOption? @relation(fields: [boothProductionOptionId], references: [id])
@@ -3734,7 +4011,6 @@ model FactoryPlanningMonth {
   @@unique([siteId, year, month])
   @@index([year, month])
 }
-
 
 /// Process station where a panel was scrapped (not a kiosk FactoryStation code).
 enum FactoryScrapProcessStation {
@@ -3914,7 +4190,9 @@ model RpRequest {
   clarifications          String?
   notes                   String?
   client                  String?
-  /** Warehouse / partner receiving stock (shown as part of address). */
+  /**
+   * Warehouse / partner receiving stock (shown as part of address).
+   */
   partner                 String?
   address                 String?
   recipient               String?
@@ -3926,7 +4204,9 @@ model RpRequest {
   tracking                String?
   readyMarkedAt           DateTime?                 @map("ready_marked_at")
   payer                   String?
-  /** When true, auto payer formula must not overwrite a manual admin override. */
+  /**
+   * When true, auto payer formula must not overwrite a manual admin override.
+   */
   payerManual             Boolean                   @default(false) @map("payer_manual")
   currentLocation         String?                   @map("current_location")
   workshopNote            String?                   @map("workshop_note")
@@ -4703,8 +4983,10 @@ model SalesOpportunityForecastRun {
   createdAt DateTime @default(now())
   completedAt DateTime?
   items SalesOpportunityForecastItem[]
+
   @@index([runDate(sort: Desc), createdAt(sort: Desc)], map: "SalesOpportunityForecastRun_date_idx")
 }
+
 model SalesOpportunityForecastItem {
   id String @id
   runId String
@@ -4725,16 +5007,19 @@ model SalesOpportunityForecastItem {
   lastError String?
   completedAt DateTime?
   run SalesOpportunityForecastRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+
   @@unique([runId, familyId])
   @@index([runId, status, availableAt], map: "SalesOpportunityForecastItem_claim_idx")
   @@index([inputHash, completedAt(sort: Desc)], map: "SalesOpportunityForecastItem_hash_idx")
   @@index([familyId], map: "SalesOpportunityForecastItem_family_idx")
 }
+
 model SalesOpportunityQualification {
   familyId String @id
   data Json
   updatedAt DateTime
 }
+
 model SalesOpportunityQualificationEvent {
   id String @id
   familyId String
@@ -4742,13 +5027,103 @@ model SalesOpportunityQualificationEvent {
   actorId String
   actorName String
   createdAt DateTime
+
   @@index([familyId, createdAt], map: "SalesOpportunityQualificationEvent_family_idx")
 }
 
 // ---- Physical booth inventory (owner: inventory, inventory.meavo.app) ----
 // SQL-only checks and partial unique indexes: scripts/add-inventory-v1.sql.
-// Apply that reviewed script, not db push alone. No FK to disposable Factory
-// units or Sales rows: source keys link integrations without deleting history.
+// Apply that reviewed script, not db push alone. No FK from Inventory to
+// disposable Factory units or Sales rows: source keys link integrations without
+// deleting history. The reverse links (Factory, MRP and Sales rows pointing at
+// InventoryUnit or ProductionBatch) are nullable and ON DELETE SET NULL.
+//
+// Shared masters owned here and read by every app (docs/data-model.md):
+// BoothFamily (scripts/add-booth-family-catalog.sql), ProductionBatch
+// (scripts/add-production-batch-master.sql) and InventoryUnit as the single
+// physical booth whose serialNumber is the planning sheet's 5-digit booth id
+// (scripts/add-booth-identity-links.sql).
+
+/// Booth model catalogue: one row per BoothProductFamily. code is the serial
+/// prefix and the key every app reads; factoryCode and mrpName are the keys
+/// FactoryBoothModel and MrpBoothModel use today.
+model BoothFamily {
+  /// SO WS C2 C4 H1 HF H2 H4.
+  code        String             @id
+  family      BoothProductFamily @unique
+  /// Canonical English name: Soho, Workstation, Camden 2, Camden 4, Haven One, Haven Focus, Haven Two, Haven Four.
+  name        String
+  /// Label shown on the Factory floor (today the same as FactoryBoothModel.nameBg).
+  nameBg      String
+  /// Classic | Haven.
+  line        String
+  /// FactoryBoothModel.code; SW for Workstation.
+  factoryCode String             @unique
+  /// MrpBoothModel.name.
+  mrpName     String             @unique
+  /// Lower-case spellings found in sheets and code ("camden 7", "meavo two", "h.f").
+  aliases     String[]           @default([])
+  sortOrder   Int                @default(0)
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  factoryModel      FactoryBoothModel?
+  mrpModel          MrpBoothModel?
+  productionBatches ProductionBatch[]
+}
+
+/// Lifecycle of a master production batch. Factory paused maps to IN_PRODUCTION,
+/// Factory done and MRP completed map to READY.
+enum ProductionBatchStatus {
+  PROPOSED
+  PLANNED
+  IN_PRODUCTION
+  PARTIALLY_READY
+  READY
+  CANCELLED
+}
+
+/// Batch master: one row per batch code (AB193, VB202, KB134). Factory planning,
+/// Factory production, MRP and Inventory batches link here by productionBatchId.
+/// Backfilled from the sheet copies by scripts/add-production-batch-master.sql;
+/// created by the Inventory app from release 2.
+model ProductionBatch {
+  id               String                @id @default(cuid())
+  code             String                @unique
+  siteId           String
+  familyCode       String?
+  /// Product version code; null until BoothFamilyVersion (release 2).
+  versionCode      String?
+  productionYear   Int?
+  productionMonth  Int?
+  plannedQty       Int?
+  plannedStart     DateTime?             @db.Date
+  plannedEnd       DateTime?             @db.Date
+  originalDeadline DateTime?             @db.Date
+  isUsMarket       Boolean?
+  status           ProductionBatchStatus @default(PLANNED)
+  /// sheet | inventory.
+  sourceSystem     String?
+  /// Sheet row key "AKS:AB193" (the format of MrpManufacturingBatch.masterSheetRowKey),
+  /// or the InventoryBatch id for batches first seen in Inventory.
+  sourceId         String?
+  createdById      String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  site           FactorySite             @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  family         BoothFamily?            @relation(fields: [familyCode], references: [code], onDelete: Restrict)
+  planningBatch  FactoryPlanningBatch?
+  factoryBatch   FactoryProductionBatch?
+  mrpBatch       MrpManufacturingBatch?
+  inventoryBatch InventoryBatch?
+  units          InventoryUnit[]
+
+  @@unique([sourceSystem, sourceId])
+  @@index([siteId, productionYear, productionMonth])
+  @@index([status])
+}
 
 enum InventoryWarehouseKind {
   LOCAL
@@ -4930,10 +5305,14 @@ model InventoryFactory {
   metadata     Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  /// FactorySite with the same code (scripts/add-production-batch-master.sql).
+  siteId       String?
+  site         FactorySite?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
   batches      InventoryBatch[]
   units        InventoryUnit[]
 
   @@unique([sourceSystem, sourceId])
+  @@index([siteId])
 }
 
 model InventoryBatch {
@@ -4945,7 +5324,11 @@ model InventoryBatch {
   metadata     Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  /// Master batch whose code equals batchNumber (scripts/add-production-batch-master.sql).
+  /// Retires in release 3 in favour of InventoryUnit.productionBatchId.
+  productionBatchId String?          @unique
   factory      InventoryFactory @relation(fields: [factoryId], references: [id], onDelete: Restrict)
+  productionBatch   ProductionBatch? @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
   units        InventoryUnit[]
 
   @@unique([factoryId, batchNumber])
@@ -5027,18 +5410,28 @@ model InventoryUnit {
   notes                 String             @default("")
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
+  /// Master batch this booth is planned or built in (scripts/add-booth-identity-links.sql).
+  productionBatchId   String?
+  /// Position of the booth within its batch on the planning sheet.
+  plannedSortOrder    Int?
 
   finish           InventoryFinish     @relation(fields: [finishId], references: [id], onDelete: Restrict)
   batch            InventoryBatch?     @relation(fields: [batchId, factoryId], references: [id, factoryId], onDelete: Restrict)
   factory          InventoryFactory?   @relation(fields: [factoryId], references: [id], onDelete: Restrict)
   warehouse        InventoryWarehouse? @relation("InventoryCurrentWarehouse", fields: [warehouseId], references: [id], onDelete: Restrict)
   intendedWarehouse InventoryWarehouse? @relation("InventoryIntendedWarehouse", fields: [intendedWarehouseId], references: [id], onDelete: Restrict)
+  productionBatch   ProductionBatch?            @relation(fields: [productionBatchId], references: [id], onDelete: Restrict)
   palletContents   InventoryPalletContent[]
   allocations      InventoryAllocation[]
   transferItems    InventoryTransferItem[]
   preparationTasks InventoryPreparationTask[]
   auditEvents      InventoryAuditEvent[]
   exportLines      InventoryExportLine[]
+  // Copies of this booth in other apps (scripts/add-booth-identity-links.sql).
+  planningBooth     FactoryPlanningBooth?
+  factoryUnit       FactoryProductionBoothUnit?
+  mrpBatchUnit      MrpBatchUnit?
+  salesBoothUnit    BoothUnit?
 
   @@unique([sourceSystem, sourceId])
   @@index([family, finishId, voltage, status])
@@ -5046,6 +5439,7 @@ model InventoryUnit {
   @@index([intendedWarehouseId])
   @@index([factoryId])
   @@index([batchId, factoryId])
+  @@index([productionBatchId, plannedSortOrder])
 }
 
 /// One durable package/component grouping. A unit may have many packages and

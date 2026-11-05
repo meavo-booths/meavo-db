@@ -21,7 +21,7 @@ partial schema would drop the other apps' tables and columns.
 1. Edit `prisma/schema.prisma` on a `feat/*` branch.
 2. Validate: `npm run validate` (needs `DATABASE_URL` in `.env`). Confirm it targets an isolated non-production database.
 3. Review the SQL with `npm run diff`; test additive changes there with `npm run db:push`, or reviewed idempotent SQL through `prisma db execute` for ordering-sensitive/destructive changes.
-4. Open a PR against `staging` with the SQL, consumer compatibility checks, and rollback notes.
+4. Open a PR against `staging` with the SQL, consumer compatibility checks, and rollback notes. CI (`Validate schema`) rejects a non-additive diff from the base branch, replays every script listed in `scripts/verify-sql-replay.sh` twice on a database built from the base schema, and requires the result to equal `prisma/schema.prisma`; list a new script there in the same PR. Run it locally with `DATABASE_URL=<disposable localhost database> scripts/verify-sql-replay.sh origin/staging`.
 5. Follow [RELEASE_POLICY.md](RELEASE_POLICY.md): the only human gate is the staging → `main` release; its yes also covers the release tag and the release's production SQL.
 6. Prepare each affected app’s dependency bump as a feature PR against `staging`; production rollout requires its own approval.
 
@@ -55,24 +55,29 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Xero | sales | XeroMarketThemeMapping, XeroMarketTaxMapping, XeroMarketAccountMapping, XeroMarketTaxAccountMapping, XeroUsStateMapping, XeroIntegrationSettings |
 | Notifications | gateway | NotificationOutbox, NotificationDelivery, NotificationEventSetting, Notification, UserNotificationPreference, AppAnnouncement |
 | Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpMaterialCategory, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine, MrpBomMissingMaterialCode, MrpElectricModule*, MrpElectricAssembly*, MrpRecipeVersion*, MrpCorrectionLog, MrpSyncAttempt, MrpSheetSyncLog |
-| Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryBoothOption, FactoryProduction*, FactoryStationWorkItem, FactoryStationIssue, FactoryPanelScrap*, FactorySetting, FactoryWorkSession, FactoryQuota, FactoryScheduleTaskOverride, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite, FactoryBoothVersionCode, FactoryBatchProductionOption, FactoryBoothProductionOption |
+| Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryBoothOption, FactoryProduction*, FactoryStationWorkItem, FactoryStationIssue, FactoryPanelScrap*, FactorySetting, FactoryWorkSession, FactoryQuota, FactoryScheduleTaskOverride, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite, FactoryBoothVersionCode, FactoryBatchProductionOption, FactoryBoothProductionOption, FactoryWorker, FactoryStationAssignment, FactoryStationBreak, FactoryPallet, FactoryPalletLine, FactoryPalletHold, FactoryModelPanelEffort, FactoryPanelOrder, FactoryPanelOrderEvent, FactoryPanelOrderScrapReport |
 | Clock-In | clock | ClockWorker, ClockCardBinding, ClockPendingUid, ClockUnassignedTap, ClockEvent, ClockWorkSettings, ClockDevice, ClockDeviceEvent, ClockExcludedDay (snake_case tables via `@@map`) |
 | Spare parts / panels (RP) | rp | RpRequest, RpLineItem, RpInternalProductionRow, RpPhoto, RpSheetSyncOutbox, RpSheetRowMap, RpAddressBookEntry, RpPanelCatalogOption, RpExportTrackingRow, RpNumSequence, RpIpNumSequence, RpAutomationState, RpLifecycleEvent, RpPartMrpMap, RpPanelMrpMap, RpSparePart, RpPanelOption |
 | Task management | tasks | TaskWorkspace, TaskWorkspaceMember, TaskBoardColumn, Task, TaskAssignee, TaskExternalLink, TaskComment |
 | Feature requests | requests | FeatureRequest, FeatureRequestVote, FeatureRequestAttachment |
 | Partner stock | stock | StockPartner, StockPartnerVisit |
-| Physical booth inventory | inventory | InventoryAccess, InventoryWarehouse*, InventorySpot, InventoryPallet*, InventoryFactory, InventoryBatch, InventoryFinish, InventoryCatalogMapping, InventoryUnit, InventoryDemand*, InventorySuggestion, InventoryAllocation, InventoryExportLine, InventorySerialSequence, InventoryTransfer*, InventoryPreparationTask, InventoryAuditEvent, InventoryOperation, InventoryIntegrationEvent; also writes `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` |
+| Physical booth inventory | inventory | BoothFamily (booth catalogue, read by every app), ProductionBatch (batch master), InventoryAccess, InventoryWarehouse*, InventorySpot, InventoryPallet*, InventoryFactory, InventoryBatch, InventoryFinish, InventoryCatalogMapping, InventoryUnit, InventoryDemand*, InventorySuggestion, InventoryAllocation, InventoryExportLine, InventorySerialSequence, InventoryTransfer*, InventoryPreparationTask, InventoryAuditEvent, InventoryOperation, InventoryIntegrationEvent; also writes `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` |
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.
 
-Tables that exist in the production database but are **not declared here**,
-because app repositories created them with their own scripts (5 November 2026
-audit, see [docs/database-audit-2026-11.md](docs/database-audit-2026-11.md)):
-Factory `FactoryWorker`, `FactoryStationAssignment`, `FactoryPallet`,
+The ten Factory floor tables that the Factory app used to create at runtime
+(`FactoryWorker`, `FactoryStationAssignment`, `FactoryPallet`,
 `FactoryPalletLine`, `FactoryPalletHold`, `FactoryModelPanelEffort`,
 `FactoryStationBreak`, `FactoryPanelOrder`, `FactoryPanelOrderEvent`,
-`FactoryPanelOrderScrapReport`; MRP `MrpRecipeVersionAmendment`,
+`FactoryPanelOrderScrapReport`) and its runtime columns are declared here since
+0.101.0, exactly as production has them
+([scripts/add-factory-floor-tables.sql](scripts/add-factory-floor-tables.sql)).
+
+Tables that exist in the production database but are still **not declared here**,
+because app repositories created them with their own scripts (5 November 2026
+audit, see [docs/database-audit-2026-11.md](docs/database-audit-2026-11.md)):
+MRP `MrpRecipeVersionAmendment`,
 `MrpRecipeVersionDocumentLink`, `MrpRecipeVersionScope`, `mrp_one_shot_script`;
 Tasks `TaskAttachment`, `TaskIntegration`, `TaskUserSettings`; the Zeron
 material checker's `Zeron*` tables (its own Prisma schema, which re-declares
@@ -86,6 +91,16 @@ and regenerated Factory production rows. Sales and Factory may enqueue their
 own `InventoryIntegrationEvent` rows transactionally; Inventory processes them
 and owns all other inventory writes. See [Inventory V1](docs/inventory-v1.md) for
 the schema contract and required SQL-only allocation/expiry constraints.
+
+Inventory also owns three shared masters that every app reads (cross-app data
+review, release 1; [docs/data-model.md](docs/data-model.md) § Booth catalogue,
+batch master and booth identity): `BoothFamily`, one row per booth family keyed
+by the serial prefix (`SO WS C2 C4 H1 HF H2 H4`); `ProductionBatch`, one row per
+batch code with `FactorySite` as the site master; and `InventoryUnit` as the
+single physical booth, whose `serialNumber` is the planning sheet's 5-digit booth
+id. Factory, MRP and Sales rows point at them through nullable link columns;
+Factory and MRP write their own links, and Inventory alone writes
+`BoothUnit.inventoryUnitId`.
 
 ## Documentation
 
