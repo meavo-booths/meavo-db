@@ -14,6 +14,7 @@ Create `feat/`, `fix/`, or `chore/` branches from `staging` and open PRs explici
 - [ ] Agent docs updated if you added a new domain section or changed the release workflow
 - [ ] Destructive steps shipped as idempotent `scripts/*.sql`, not through `db:push`
 - [ ] New `scripts/*.sql` listed in `scripts/verify-sql-replay.sh`; CI replays them twice from the base schema and requires the result to equal `prisma/schema.prisma`
+- [ ] A non-additive statement that cannot lose data (such as widening a primary key) is added whole to `REVIEWED` in that script, with the reason, instead of weakening the check
 
 ## Branch naming and release path
 

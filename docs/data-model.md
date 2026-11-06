@@ -111,7 +111,7 @@ There is **no Prisma migrations directory**. Follow [RELEASE_POLICY.md](../RELEA
 2. `npm run diff` — **read the generated SQL**. Anything with `DROP` needs to be understood before going further; a stale or trimmed schema will drop other apps' tables.
 3. Additive changes: `npm run db:push`.
 4. Destructive or ordering-sensitive changes: write an **idempotent** script in `scripts/` (wrap `CREATE TYPE` etc. in `DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL`), with an `-- Apply:` header, and run `npx prisma db execute --file scripts/<file>.sql --schema prisma/schema.prisma`. See `scripts/add-task-tables.sql` for the pattern, and `scripts/add-booth-identity-links.sql` for guarded foreign keys (`IF NOT EXISTS (SELECT 1 FROM pg_constraint ...)`) and NULL-only backfills.
-   CI runs `scripts/verify-sql-replay.sh`: the diff from the base branch must be additive, and the scripts listed in it, each applied twice to a database built from the base schema, must produce `prisma/schema.prisma` exactly. Add a new script to that list in the same PR.
+   CI runs `scripts/verify-sql-replay.sh`: the diff from the base branch must be additive, apart from whole statements in its `REVIEWED` list (each one names the script that performs it and why it cannot lose data), and the scripts listed in it, each applied twice to a database built from the base schema, must produce `prisma/schema.prisma` exactly. Add a new script to that list in the same PR.
 5. Commit the version/schema changes on `feat/*` and open a PR against `staging`. The release yes (staging → `main`) covers `main` promotion, the release tag and production application (`scripts/apply-sql.sh production`). After the approved package release, prepare dependency bumps through each consumer’s feature-to-staging workflow.
 
 Consumer apps must **never** run `db:push` themselves — their partial schemas would drop everyone else's tables.
@@ -451,6 +451,15 @@ points at the Factory, MRP or Sales copies.
 created at runtime are declared here as production has them, including the
 SQL-only indexes `FactoryPalletLine_combo_key` and
 `FactoryStationBreak_station_open_key`.
+
+**Factory schedule task overrides.** `FactoryScheduleTaskOverride` is keyed by
+`(batchId, elementId, processStep, assignedStationId)`: one panel job can sit on
+several ASM stations at once, each with its own `sortOrder`, while progress stays
+shared through the production events. Production has had this key since the
+Factory app widened it; [widen-factory-task-override-pk.sql](../scripts/widen-factory-task-override-pk.sql)
+(0.102.0) brings staging and fresh databases to the same key and changes nothing
+where `assignedStationId` is already in the primary key. The Prisma compound
+unique input is `batchId_elementId_processStep_assignedStationId`.
 
 **MRP recipe versions and electric kits.** The recipe-version metadata
 (`MrpRecipeVersion.kind`, colours, flags, `introducedOn`, `lockedAt`), the
