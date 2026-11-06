@@ -6,7 +6,8 @@
 # Runs in CI (.github/workflows/ci.yml) against a throwaway PostgreSQL service, and
 # locally against any disposable database on localhost. It refuses every other host.
 #   1. Additive check: `prisma migrate diff` from the base ref's schema to
-#      prisma/schema.prisma must contain no DROP, RENAME, SET NOT NULL or type change.
+#      prisma/schema.prisma must contain no DROP, RENAME, SET NOT NULL or type change,
+#      except the whole statements listed in REVIEWED below.
 #   2. Builds the database from the base ref's schema.
 #   3. Applies every script in REPLAY below, in order, twice.
 #   4. `prisma migrate diff` from that database to prisma/schema.prisma must be empty,
@@ -26,6 +27,17 @@ REPLAY=(
   scripts/add-production-batch-master.sql
   scripts/add-booth-identity-links.sql
   scripts/add-factory-floor-tables.sql
+  scripts/widen-factory-task-override-pk.sql
+)
+
+# Non-additive statements reviewed as unable to lose data, each exactly as
+# `prisma migrate diff` prints it with its lines joined by single spaces. Every entry
+# names the REPLAY script that performs it; any other DROP, RENAME, SET NOT NULL or
+# type change still fails step 1, including a different change to the same object.
+REVIEWED=(
+  # scripts/widen-factory-task-override-pk.sql: adds the NOT NULL assignedStationId to
+  # the primary key, so existing rows stay unique; production already has this key.
+  'ALTER TABLE "FactoryScheduleTaskOverride" DROP CONSTRAINT "FactoryScheduleTaskOverride_pkey", ADD CONSTRAINT "FactoryScheduleTaskOverride_pkey" PRIMARY KEY ("batchId", "elementId", "processStep", "assignedStationId");'
 )
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -48,7 +60,15 @@ cd "$root"
 echo "---- 1. additive check: $base -> working tree"
 "$prisma" migrate diff --from-schema-datamodel "$work/base.prisma" \
   --to-schema-datamodel prisma/schema.prisma --script > "$work/additive.sql"
-if grep -nE '(^|[[:space:]])DROP[[:space:]]|RENAME|SET NOT NULL|SET DATA TYPE' "$work/additive.sql"; then
+# One statement per line without comments, so REVIEWED entries match whole statements.
+awk '/^--/ || NF == 0 { next }
+     { sub(/^[ \t]+/, ""); stmt = (stmt == "" ? $0 : stmt " " $0) }
+     /;[ \t]*$/ { print stmt; stmt = "" }
+     END { if (stmt != "") print stmt }' "$work/additive.sql" > "$work/statements.sql"
+printf '%s\n' ${REVIEWED[@]+"${REVIEWED[@]}"} > "$work/reviewed.txt"
+grep -xF -f "$work/reviewed.txt" "$work/statements.sql" | sed 's/^/REVIEWED /' || true
+if grep -vxF -f "$work/reviewed.txt" "$work/statements.sql" \
+    | grep -nE '(^|[[:space:]])DROP[[:space:]]|RENAME|SET NOT NULL|SET DATA TYPE'; then
   fail "the schema change is not additive (statements above); destructive changes need their own reviewed plan"
 fi
 grep -E '^-- ' "$work/additive.sql" | sort | uniq -c || true

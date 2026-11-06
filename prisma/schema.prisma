@@ -3624,7 +3624,10 @@ model FactoryScheduleTaskOverride {
   element         FactoryElement         @relation(fields: [elementId], references: [id], onDelete: Cascade)
   assignedStation FactoryStation         @relation(fields: [assignedStationId], references: [id], onDelete: Cascade)
 
-  @@id([batchId, elementId, processStep])
+  /// One row per station, so a panel job (batch × element × processStep) can run on
+  /// several ASM stations at once, each with its own sortOrder
+  /// (scripts/widen-factory-task-override-pk.sql).
+  @@id([batchId, elementId, processStep, assignedStationId])
   @@index([assignedStationId, sortOrder])
 }
 
