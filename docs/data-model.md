@@ -461,6 +461,18 @@ Factory app widened it; [widen-factory-task-override-pk.sql](../scripts/widen-fa
 where `assignedStationId` is already in the primary key. The Prisma compound
 unique input is `batchId_elementId_processStep_assignedStationId`.
 
+**MRP recipe versions and electric kits.** The recipe-version metadata
+(`MrpRecipeVersion.kind`, colours, flags, `introducedOn`, `lockedAt`), the
+`MrpRecipeVersionScope`, `MrpRecipeVersionAmendment` and
+`MrpRecipeVersionDocumentLink` tables, `MrpManufacturingBatch.prefix/sequence`,
+`MrpBatchUnit.electricDeductionPosted`, `MrpElectricModule.boothModelId`, the
+`electric_consumption` movement type and the `mrp_one_shot_script` marker table
+were created by MRP's own build-time SQL; since 0.102.0 they are declared here as
+production has them (`scripts/add-mrp-recipe-version-tables.sql`).
+`MrpElectricAssemblyVersion` and `MrpRecipeVersionElectric.assemblyVersionId`,
+declared since 0.78.0 but never applied to production, are created there by
+`scripts/add-mrp-electric-assembly-versions.sql` (empty table, nullable column).
+
 ## Queries agents should reuse
 
 N/A — this repo contains no query code. Prisma client helpers, seeds, and repositories live in the consuming apps.

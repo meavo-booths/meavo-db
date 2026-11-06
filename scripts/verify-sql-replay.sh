@@ -28,6 +28,8 @@ REPLAY=(
   scripts/add-booth-identity-links.sql
   scripts/add-factory-floor-tables.sql
   scripts/widen-factory-task-override-pk.sql
+  scripts/add-mrp-recipe-version-tables.sql
+  scripts/add-mrp-electric-assembly-versions.sql
 )
 
 # Non-additive statements reviewed as unable to lose data, each exactly as
