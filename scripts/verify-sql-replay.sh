@@ -32,6 +32,8 @@ REPLAY=(
   scripts/add-mrp-electric-assembly-versions.sql
   scripts/align-forecast-fk-and-bom-index-names.sql
   scripts/align-production-drift-2026-11.sql
+  scripts/drop-assembly-issue-category.sql
+  scripts/relax-inventory-serial-sequence-check.sql
 )
 
 # Non-additive statements reviewed as unable to lose data, each exactly as
@@ -51,6 +53,10 @@ REVIEWED=(
   # scripts/align-production-drift-2026-11.sql: timestamp(3) -> timestamptz, reading the
   # stored UTC values as UTC; no precision is lost. Production already has timestamptz.
   'ALTER TABLE "Deal" ALTER COLUMN "xeroFinalSyncedAt" SET DATA TYPE TIMESTAMPTZ, ALTER COLUMN "xeroPaymentSyncedAt" SET DATA TYPE TIMESTAMPTZ;'
+  # scripts/drop-assembly-issue-category.sql: drops the legacy single issue category,
+  # replaced by issueCategories in July 2026 and unused since; the 483 production values
+  # were exported first on the owner's decision (6 November 2026).
+  'ALTER TABLE "Assembly" DROP COLUMN "issueCategory";'
 )
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

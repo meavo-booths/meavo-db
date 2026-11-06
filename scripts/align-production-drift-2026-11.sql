@@ -2,7 +2,8 @@
 -- (drift map of 6 November 2026, declared in prisma/schema.prisma by 0.103.0):
 --   1. DEFAULT CURRENT_TIMESTAMP on 14 updatedAt columns and empty-array defaults on
 --      Assembly.issueCategories and Questionnaire.eventTypes;
---   2. the legacy Assembly.issueCategory column;
+--   2. (removed in 0.104.0: the legacy Assembly.issueCategory column, which
+--      drop-assembly-issue-category.sql now drops);
 --   3. Deal.xeroFinalSyncedAt / xeroPaymentSyncedAt as timestamptz, and
 --      mrp_one_shot_script.ran_at without an explicit precision;
 --   4. the Tasks tables TaskAttachment, TaskIntegration, TaskUserSettings (created by
@@ -51,8 +52,8 @@ BEGIN
   END LOOP;
 END $$;
 
--- 2. Legacy single issue category, superseded by issueCategories (Assembly keeps it).
-ALTER TABLE "Assembly" ADD COLUMN IF NOT EXISTS "issueCategory" TEXT;
+-- 2. Removed in 0.104.0: this step re-added the legacy Assembly.issueCategory column,
+--    which scripts/drop-assembly-issue-category.sql drops.
 
 -- 3. Column types. Prisma writes these stamps as UTC, so stored values are read as UTC.
 DO $$

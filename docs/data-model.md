@@ -475,8 +475,7 @@ production):
 - `Deal.xeroFinalSyncedAt` and `Deal.xeroPaymentSyncedAt` are `timestamptz`
   (`@db.Timestamptz`); `mrp_one_shot_script.ran_at` has no explicit precision.
 - `Assembly.issueCategory`, the legacy single category that `issueCategories`
-  replaced. The Assembly app no longer writes it; dropping it is the Assembly
-  owner's decision and needs its own reviewed change.
+  replaced (dropped in 0.104.0, see below).
 - The Tasks tables `TaskAttachment`, `TaskIntegration` and `TaskUserSettings`, and
   the Zeron material checker's tables and enums (own section at the end of the
   schema). `TaskIntegration.userId`, `TaskUserSettings.userId` and
@@ -489,6 +488,20 @@ constraints that Prisma models as unique indexes, `NOT NULL` on five scalar-list
 columns, and the value order of three enums (`FeatureRequestType`,
 `InventoryAllocationKind`, `PaymentTerms`), which is not changed because it sets
 dropdown order.
+
+**Legacy issue category dropped (0.104.0).** `Assembly.issueCategory` held one
+category per assembly until the Assembly app moved to `issueCategories` in July
+2026; nothing has read or written it since. On the owner's decision
+[drop-assembly-issue-category.sql](../scripts/drop-assembly-issue-category.sql)
+drops it, after its 483 production values were exported for the record.
+[align-production-drift-2026-11.sql](../scripts/align-production-drift-2026-11.sql)
+no longer re-adds it.
+
+**Serial sequence range (0.104.0).** `InventorySerialSequence.nextNumber` may hold
+10000 to 100000 (100000 = series exhausted) instead of 40000 to 100000, so the row
+can record the real next booth number of the one five-digit series
+([relax-inventory-serial-sequence-check.sql](../scripts/relax-inventory-serial-sequence-check.sql));
+its default is 10000.
 
 **Factory schedule task overrides.** `FactoryScheduleTaskOverride` is keyed by
 `(batchId, elementId, processStep, assignedStationId)`: one panel job can sit on
