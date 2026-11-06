@@ -759,10 +759,6 @@ model Assembly {
   priority        String?
   comments        String?
   issueCategories String[] @default([])
-  /// Legacy single category, superseded by issueCategories and no longer written by the
-  /// Assembly app. Declared because production keeps the column; dropping it is the
-  /// Assembly owner's decision.
-  issueCategory   String?
 
   /// Google Calendar mirror (Operations-UK) for internal-team events. App-only.
   googleCalendarEventId   String?
@@ -5748,9 +5744,11 @@ model InventoryAllocation {
   @@index([confirmedById])
 }
 
+/// Lock row for app-issued booth numbers. nextNumber is the next number Inventory issues,
+/// 10000 to 99999 (SQL check; 100000 = series exhausted).
 model InventorySerialSequence {
   id         String   @id @default("global")
-  nextNumber Int      @default(40000)
+  nextNumber Int      @default(10000)
   updatedAt  DateTime @updatedAt
 }
 
