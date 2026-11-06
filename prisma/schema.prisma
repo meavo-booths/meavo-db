@@ -2823,7 +2823,7 @@ model MrpElementBomLine {
   boothElement  MrpBoothElement    @relation(fields: [boothElementId], references: [id], onDelete: Cascade)
   material      MrpMaterial        @relation(fields: [materialId], references: [id], onDelete: Restrict)
 
-  @@unique([recipeVersionId, boothElementId, colour, market, materialId])
+  @@unique([recipeVersionId, boothElementId, colour, market, materialId], map: "MrpElementBomLine_recipeVersionId_boothElementId_colour_market_")
   @@index([recipeVersionId])
 }
 
@@ -5114,7 +5114,7 @@ model SalesOpportunityForecastItem {
   usageIncomplete Boolean @default(false)
   lastError String?
   completedAt DateTime?
-  run SalesOpportunityForecastRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+  run SalesOpportunityForecastRun @relation(fields: [runId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([runId, familyId])
   @@index([runId, status, availableAt], map: "SalesOpportunityForecastItem_claim_idx")
