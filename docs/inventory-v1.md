@@ -26,7 +26,7 @@ identity").
 | Allocations | `InventoryAllocation` connects one booth to one demand-line slot. Only ACTIVE rows consume stock; SQL guarantees one ACTIVE row per booth and per demand-line slot. `kind` is QUOTE_HOLD (explicit rep request), DEAL_HOLD (automatic, won but unpaid, expires within seven days) or COMMITTED (paid, no expiry). `origin` AUTOMATIC rows are pending while `confirmedAt` is null; MANUAL rows are confirmed at creation (SQL check). Every confirmed change is audited. |
 | Export lines | `InventoryExportLine` is one row per allocation on the weekly export list: typed export week, workshop note, spare parts, labels-printed and loaded timestamps, and the frozen destination (serving warehouse or direct delivery address). A composite FK to `(allocationId, unitId)` keeps the line on its allocation's booth. The pallet number is `InventoryPalletContent`, not a column here. |
 | Sales booth unit link | `BoothUnit.inventoryUnitId` (unique), `serialCode` and `inventorySyncedAt` are written only by Inventory when an allocation links a physical booth to that Sales demand row; Sales shows them read-only. Since `add-booth-identity-links.sql`, `inventoryUnitId` is a foreign key to `InventoryUnit` with `ON DELETE SET NULL`. |
-| Serials | `InventorySerialSequence` has one `global` row whose `nextNumber` starts at 40000. Unit serial number and full serial are independently unique. Legacy prefixes/numbers are retained; new Workstation serials use WS. From the cross-app release 1 Inventory change, `serialNumber` equals the planning sheet's 5-digit booth id and app-born booths continue that series (see below); the schema already allows it (`serialNumber` 0 to 99999). |
+| Serials | `InventorySerialSequence` has one `global` row: the lock for app-issued numbers and the next number to issue (10000 to 99999, 100000 = exhausted; 40000 to 100000 before 0.104.0). Unit serial number and full serial are independently unique. Legacy prefixes/numbers are retained; new Workstation serials use WS. From the cross-app release 1 Inventory change, `serialNumber` equals the planning sheet's 5-digit booth id and app-born booths continue that series (see below); the schema already allows it (`serialNumber` 0 to 99999). |
 | Transfers | `InventoryTransfer` manifests and `InventoryTransferItem` receipt quantities distinguish dispatch from partial/complete receipt. A transfer item targets a complete unpackaged booth or an exact package, never both. |
 | Preparation | `InventoryPreparationTask` records socket fitting/checking/picking. Composite FK ensures the task's allocation belongs to the same physical unit. Completed preparation stays with that booth. |
 | History/retries | `InventoryAuditEvent` stores before/after, reason, shared User actor and name snapshot; `InventoryOperation` stores a request hash and atomic result for replay. |
@@ -199,9 +199,11 @@ cross-row/business rules inside serializable transactions with conflict retries.
     Ops/Product confirm (issuing the serial) or swap pending rows; Sales
     callers are refused on won-deal allocations.
 6. Serialize number assignment with the global sequence row in the same
-   allocation transaction. Lazily create it at 40000, skip numbers already
-   imported, advance with an atomic update/row lock, and stop at 99999. SQL allows
-   nextNumber=100000 only as the exhausted sentinel. Assign no serial from a
+   allocation transaction. The next number follows the highest booth id in
+   planning, MRP and Inventory and the sequence, never below 10000 (V1 started at
+   40000; the SQL check admits 10000 to 100000 since 0.104.0). Advance with an
+   atomic update/row lock and stop at 99999. SQL allows nextNumber=100000 only as
+   the exhausted sentinel. Assign no serial from a
    suggestion or an ordinary quote save. Format new serials as `MODEL NUMBER
    BATCH`; number, prefix and full serial stay with the physical booth forever.
 7. Ops/Product may override with a reason. Validate and claim the replacement
