@@ -30,6 +30,7 @@ REPLAY=(
   scripts/widen-factory-task-override-pk.sql
   scripts/add-mrp-recipe-version-tables.sql
   scripts/add-mrp-electric-assembly-versions.sql
+  scripts/align-forecast-fk-and-bom-index-names.sql
 )
 
 # Non-additive statements reviewed as unable to lose data, each exactly as
@@ -40,6 +41,12 @@ REVIEWED=(
   # scripts/widen-factory-task-override-pk.sql: adds the NOT NULL assignedStationId to
   # the primary key, so existing rows stay unique; production already has this key.
   'ALTER TABLE "FactoryScheduleTaskOverride" DROP CONSTRAINT "FactoryScheduleTaskOverride_pkey", ADD CONSTRAINT "FactoryScheduleTaskOverride_pkey" PRIMARY KEY ("batchId", "elementId", "processStep", "assignedStationId");'
+  # scripts/align-forecast-fk-and-bom-index-names.sql: re-adds the same foreign key with
+  # ON UPDATE NO ACTION (run ids are never updated), as production and staging have it.
+  'ALTER TABLE "SalesOpportunityForecastItem" DROP CONSTRAINT "SalesOpportunityForecastItem_runId_fkey";'
+  # scripts/align-forecast-fk-and-bom-index-names.sql: renames the unique index to the
+  # name production and staging have; same columns, same uniqueness.
+  'ALTER INDEX "MrpElementBomLine_recipeVersionId_boothElementId_colour_mar_key" RENAME TO "MrpElementBomLine_recipeVersionId_boothElementId_colour_market_";'
 )
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

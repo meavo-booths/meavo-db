@@ -452,6 +452,16 @@ created at runtime are declared here as production has them, including the
 SQL-only indexes `FactoryPalletLine_combo_key` and
 `FactoryStationBreak_station_open_key`.
 
+**Names and rules kept as production has them.** Two objects are declared the way
+production and staging already have them (0.102.1): the unique index on
+`MrpElementBomLine` (`recipeVersionId, boothElementId, colour, market, materialId`)
+is mapped to its PostgreSQL-truncated name `…_colour_market_`, and
+`SalesOpportunityForecastItem.runId` uses `ON UPDATE NO ACTION` (run ids are never
+updated). [align-forecast-fk-and-bom-index-names.sql](../scripts/align-forecast-fk-and-bom-index-names.sql)
+brings databases built from older schemas to the same state and changes nothing on
+production or staging. Neither change alters the generated Prisma client's field
+names: `map:` sets only the database name.
+
 **Factory schedule task overrides.** `FactoryScheduleTaskOverride` is keyed by
 `(batchId, elementId, processStep, assignedStationId)`: one panel job can sit on
 several ASM stations at once, each with its own `sortOrder`, while progress stays
