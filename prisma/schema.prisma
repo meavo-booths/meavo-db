@@ -76,6 +76,7 @@ model User {
   mrpCorrectionLogs          MrpCorrectionLog[]   @relation("MrpCorrectionAuthor")
   mrpRecipeExceptionsCreated MrpRecipeException[] @relation("MrpRecipeExceptionCreator")
   mrpRecipeVersionsCreated   MrpRecipeVersion[]   @relation("MrpRecipeVersionCreator")
+  mrpRecipeVersionAmendments MrpRecipeVersionAmendment[] @relation("MrpRecipeVersionAmendmentUser")
   mrpElectricAssemblyVersions MrpElectricAssemblyVersion[] @relation("MrpElectricAssemblyVersionCreator")
   mrpStockMovementsCreated   MrpStockMovement[]   @relation("MrpStockMovementCreator")
   mrpProductionBatchesCreated MrpProductionBatch[] @relation("MrpProductionBatchCreator")
@@ -2442,6 +2443,8 @@ enum MrpStockMovementType {
   batch_complete_flush
   inventory_count
   bom_rework_adjustment
+  /// Electric materials deducted once every panel of a batch unit is complete.
+  electric_consumption
 }
 
 enum MrpManufacturingBatchStatus {
@@ -2455,6 +2458,19 @@ enum MrpRecipeVersionStatus {
   draft
   ready
   archived
+}
+
+/// recipe = full product recipe; documentation = documentation-only change.
+enum MrpRecipeVersionKind {
+  recipe
+  documentation
+}
+
+/// Which booth colours a recipe version affects.
+enum MrpRecipeVersionColoursMode {
+  all
+  any
+  specific
 }
 
 enum MrpRecipeVersionPanelChangeType {
@@ -2679,6 +2695,7 @@ model MrpWarehouse {
   stockMovements       MrpStockMovement[]
   stockBalances        MrpStockBalance[]
   inventoryCounts      MrpInventoryCount[]
+  recipeVersionScopes  MrpRecipeVersionScope[]
 
   @@index([siteId])
 }
@@ -2698,6 +2715,7 @@ model MrpBoothModel {
   manufacturingBatches MrpManufacturingBatch[]
   exceptionScopes      MrpRecipeExceptionScope[]
   electricAssemblies   MrpElectricAssembly[]
+  electricModules      MrpElectricModule[]
   recipeVersions       MrpRecipeVersion[]
 }
 
@@ -2816,14 +2834,21 @@ model MrpElectricModule {
   /// Manufacturing / drawing number for the module as a whole.
   partCode  String   @unique
   name      String
+  /// Optional booth model. Modules are shared across booths; MRP does not
+  /// backfill this from assemblies.
+  boothModelId String?
   notes     String?
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  /// Production has DEFAULT CURRENT_TIMESTAMP on this column.
+  updatedAt DateTime @default(now()) @updatedAt
 
+  boothModel    MrpBoothModel?            @relation(fields: [boothModelId], references: [id], onDelete: SetNull)
   lines         MrpElectricModuleLine[]
   assemblyLines MrpElectricAssemblyLine[]
+
+  @@index([boothModelId])
 }
 
 /// Materials that make up one electric module.
@@ -2881,16 +2906,27 @@ model MrpElectricAssemblyLine {
 
 /// Published recipe snapshot for a booth model (V1.1, V1.2, Legacy, …).
 model MrpRecipeVersion {
-  id              String                   @id @default(cuid())
-  boothModelId    String
-  label           String
-  status          MrpRecipeVersionStatus   @default(draft)
-  notes           String?
-  isDefault       Boolean                  @default(false)
-  sourceVersionId String?
-  createdById     String?
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
+  id                     String                      @id @default(cuid())
+  boothModelId           String
+  label                  String
+  status                 MrpRecipeVersionStatus      @default(draft)
+  kind                   MrpRecipeVersionKind        @default(recipe)
+  notes                  String?
+  description            String?
+  reason                 String?
+  affectedColours        String[]                    @default([])
+  affectedColoursMode    MrpRecipeVersionColoursMode @default(any)
+  clientVisible          Boolean                     @default(false)
+  assemblyChangeRequired Boolean                     @default(false)
+  sparePartsImpact       Boolean                     @default(false)
+  stakeholdersBriefed    Boolean                     @default(false)
+  introducedOn           DateTime?
+  lockedAt               DateTime?
+  isDefault              Boolean                     @default(false)
+  sourceVersionId        String?
+  createdById            String?
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
 
   boothModel        MrpBoothModel                  @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
   sourceVersion     MrpRecipeVersion?              @relation("MrpRecipeVersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
@@ -2901,10 +2937,70 @@ model MrpRecipeVersion {
   electricSnapshots MrpRecipeVersionElectric[]
   batches           MrpManufacturingBatch[]
   batchLinks        MrpRecipeVersionBatchLink[]
+  scopes            MrpRecipeVersionScope[]
+  amendments        MrpRecipeVersionAmendment[]
+  documentLinks     MrpRecipeVersionDocumentLink[]
 
   @@unique([boothModelId, label])
   @@index([boothModelId, status])
   @@index([boothModelId, isDefault])
+  @@index([boothModelId, introducedOn])
+}
+
+/// Scope row: factory and starting batch for a recipe version.
+model MrpRecipeVersionScope {
+  id              String   @id @default(cuid())
+  recipeVersionId String
+  warehouseId     String?
+  fromBatchId     String?
+  /// Starting batch name as entered on the version form.
+  fromBatchName   String?
+  createdAt       DateTime @default(now())
+
+  recipeVersion MrpRecipeVersion       @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+  warehouse     MrpWarehouse?          @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  fromBatch     MrpManufacturingBatch? @relation("MrpRecipeVersionScopeFromBatch", fields: [fromBatchId], references: [id], onDelete: SetNull)
+
+  @@index([recipeVersionId])
+  @@index([fromBatchId])
+}
+
+/// Audit trail for retroactive edits to locked recipe versions.
+model MrpRecipeVersionAmendment {
+  id              String   @id @default(cuid())
+  recipeVersionId String
+  userId          String
+  at              DateTime @default(now())
+  reason          String
+  summary         String?
+
+  recipeVersion MrpRecipeVersion @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+  user          User             @relation("MrpRecipeVersionAmendmentUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([recipeVersionId])
+}
+
+/// Document link (drawing, instruction) attached to a recipe version.
+model MrpRecipeVersionDocumentLink {
+  id              String   @id @default(cuid())
+  recipeVersionId String
+  url             String
+  label           String?
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  recipeVersion MrpRecipeVersion @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+
+  @@index([recipeVersionId])
+}
+
+/// Marker rows for MRP one-off data scripts (backfill-electric-snapshots,
+/// cleanup-recipe-versions); those scripts write it with raw SQL.
+model MrpOneShotScript {
+  name  String   @id
+  ranAt DateTime @default(now()) @map("ran_at") @db.Timestamptz(6)
+
+  @@map("mrp_one_shot_script")
 }
 
 /// Panel checklist row scoped to one recipe version.
@@ -2919,6 +3015,7 @@ model MrpRecipeVersionPanel {
   sortOrder              Int                              @default(0)
   isActive               Boolean                          @default(true)
   recipeCopiedFromSource Boolean                          @default(false)
+  note                   String?
   createdAt              DateTime                         @default(now())
 
   recipeVersion MrpRecipeVersion        @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
@@ -2948,7 +3045,8 @@ model MrpElectricAssemblyVersion {
   sourceVersionId String?
   createdById     String?
   createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
+  /// DEFAULT CURRENT_TIMESTAMP as on staging (scripts/add-mrp-electric-assembly-versions.sql).
+  updatedAt       DateTime               @default(now()) @updatedAt
 
   assembly            MrpElectricAssembly          @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
   sourceVersion       MrpElectricAssemblyVersion?  @relation("MrpElectricAssemblyVersionSource", fields: [sourceVersionId], references: [id], onDelete: SetNull)
@@ -3004,6 +3102,9 @@ model MrpRecipeVersionBatchLink {
 model MrpManufacturingBatch {
   id                 String                      @id @default(cuid())
   name               String
+  /// Batch code split from name (AB215 -> AB, 215), for ordering.
+  prefix             String?
+  sequence           Int?
   status             MrpManufacturingBatchStatus @default(planned)
   boothModelId       String?
   qty                Int?
@@ -3029,9 +3130,11 @@ model MrpManufacturingBatch {
   units             MrpBatchUnit[]
   exceptionLinks    MrpRecipeExceptionBatchLink[]
   versionBatchLinks MrpRecipeVersionBatchLink[]
+  versionScopeFromBatches MrpRecipeVersionScope[] @relation("MrpRecipeVersionScopeFromBatch")
 
   @@index([status])
   @@index([name])
+  @@index([prefix, sequence])
 }
 
 /// One booth row on batch Опаковане tab.
@@ -3042,6 +3145,8 @@ model MrpBatchUnit {
   boothIdText          String?
   colour               String?
   progressPct          Decimal? @db.Decimal(6, 2)
+  /// Electric materials for this unit already deducted (electric_consumption movement).
+  electricDeductionPosted Boolean @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   /// Physical booth whose serialNumber is the 5-digit id in boothIdText
@@ -3624,7 +3729,10 @@ model FactoryScheduleTaskOverride {
   element         FactoryElement         @relation(fields: [elementId], references: [id], onDelete: Cascade)
   assignedStation FactoryStation         @relation(fields: [assignedStationId], references: [id], onDelete: Cascade)
 
-  @@id([batchId, elementId, processStep])
+  /// One row per station, so a panel job (batch × element × processStep) can run on
+  /// several ASM stations at once, each with its own sortOrder
+  /// (scripts/widen-factory-task-override-pk.sql).
+  @@id([batchId, elementId, processStep, assignedStationId])
   @@index([assignedStationId, sortOrder])
 }
 

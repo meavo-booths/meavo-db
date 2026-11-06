@@ -21,7 +21,7 @@ partial schema would drop the other apps' tables and columns.
 1. Edit `prisma/schema.prisma` on a `feat/*` branch.
 2. Validate: `npm run validate` (needs `DATABASE_URL` in `.env`). Confirm it targets an isolated non-production database.
 3. Review the SQL with `npm run diff`; test additive changes there with `npm run db:push`, or reviewed idempotent SQL through `prisma db execute` for ordering-sensitive/destructive changes.
-4. Open a PR against `staging` with the SQL, consumer compatibility checks, and rollback notes. CI (`Validate schema`) rejects a non-additive diff from the base branch, replays every script listed in `scripts/verify-sql-replay.sh` twice on a database built from the base schema, and requires the result to equal `prisma/schema.prisma`; list a new script there in the same PR. Run it locally with `DATABASE_URL=<disposable localhost database> scripts/verify-sql-replay.sh origin/staging`.
+4. Open a PR against `staging` with the SQL, consumer compatibility checks, and rollback notes. CI (`Validate schema`) rejects a non-additive diff from the base branch (except whole statements reviewed in the script's `REVIEWED` list, each performed by a listed script), replays every script listed in `scripts/verify-sql-replay.sh` twice on a database built from the base schema, and requires the result to equal `prisma/schema.prisma`; list a new script there in the same PR. Run it locally with `DATABASE_URL=<disposable localhost database> scripts/verify-sql-replay.sh origin/staging`.
 5. Follow [RELEASE_POLICY.md](RELEASE_POLICY.md): the only human gate is the staging → `main` release; its yes also covers the release tag and the release's production SQL.
 6. Prepare each affected app’s dependency bump as a feature PR against `staging`; production rollout requires its own approval.
 
@@ -54,7 +54,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Sales | sales | Product, ProductFamilyInfo, ProductAvailability, ProductAddOnFamilyRestriction, Client* (incl. ClientLabel, ClientLabelAssignment, ClientEvent, ClientEventReceipt, ClientMergeAudit), Deal* (incl. DealSubscription, DealLabel, DealLabelAssignment), QuoteLineItem, BoothUnit, SalesPayment, SalesPaymentWindow, SalesPaymentSync, HubSpotLostReason, HubSpotDealSnapshot, HubSpotMarketingSync, HubSpotMarketingForm, HubSpotMarketingSubmission, HubSpotCampaignSyncState, QuotePdfTemplate, QuotePdfMarketDefault, SalesRepIdentity, SalesPrioritySettings, SalesPriorityRun, SalesPriorityWorkItem, SalesOpportunitySnapshot, SalesCrmSnapshot, SalesCompanyResearch, SalesPriorityRecommendation, SalesPriorityFeedback, SalesForecastSettings, SalesForecastRun, SalesForecastManualRun, SalesOpportunityForecastRun, SalesOpportunityForecastItem, SalesOpportunityQualification, SalesOpportunityQualificationEvent |
 | Xero | sales | XeroMarketThemeMapping, XeroMarketTaxMapping, XeroMarketAccountMapping, XeroMarketTaxAccountMapping, XeroUsStateMapping, XeroIntegrationSettings |
 | Notifications | gateway | NotificationOutbox, NotificationDelivery, NotificationEventSetting, Notification, UserNotificationPreference, AppAnnouncement |
-| Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpMaterialCategory, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine, MrpBomMissingMaterialCode, MrpElectricModule*, MrpElectricAssembly*, MrpRecipeVersion*, MrpCorrectionLog, MrpSyncAttempt, MrpSheetSyncLog |
+| Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpMaterialCategory, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine, MrpBomMissingMaterialCode, MrpElectricModule*, MrpElectricAssembly*, MrpRecipeVersion*, MrpCorrectionLog, MrpSyncAttempt, MrpSheetSyncLog, MrpOneShotScript (`mrp_one_shot_script`) |
 | Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryBoothOption, FactoryProduction*, FactoryStationWorkItem, FactoryStationIssue, FactoryPanelScrap*, FactorySetting, FactoryWorkSession, FactoryQuota, FactoryScheduleTaskOverride, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite, FactoryBoothVersionCode, FactoryBatchProductionOption, FactoryBoothProductionOption, FactoryWorker, FactoryStationAssignment, FactoryStationBreak, FactoryPallet, FactoryPalletLine, FactoryPalletHold, FactoryModelPanelEffort, FactoryPanelOrder, FactoryPanelOrderEvent, FactoryPanelOrderScrapReport |
 | Clock-In | clock | ClockWorker, ClockCardBinding, ClockPendingUid, ClockUnassignedTap, ClockEvent, ClockWorkSettings, ClockDevice, ClockDeviceEvent, ClockExcludedDay (snake_case tables via `@@map`) |
 | Spare parts / panels (RP) | rp | RpRequest, RpLineItem, RpInternalProductionRow, RpPhoto, RpSheetSyncOutbox, RpSheetRowMap, RpAddressBookEntry, RpPanelCatalogOption, RpExportTrackingRow, RpNumSequence, RpIpNumSequence, RpAutomationState, RpLifecycleEvent, RpPartMrpMap, RpPanelMrpMap, RpSparePart, RpPanelOption |
@@ -74,16 +74,22 @@ The ten Factory floor tables that the Factory app used to create at runtime
 0.101.0, exactly as production has them
 ([scripts/add-factory-floor-tables.sql](scripts/add-factory-floor-tables.sql)).
 
+The MRP recipe-version tables (`MrpRecipeVersionScope`,
+`MrpRecipeVersionAmendment`, `MrpRecipeVersionDocumentLink`) and
+`mrp_one_shot_script`, with the MRP columns its build-time SQL added, are declared
+here since 0.102.0, exactly as production has them
+([scripts/add-mrp-recipe-version-tables.sql](scripts/add-mrp-recipe-version-tables.sql)).
+`MrpElectricAssemblyVersion` and `MrpRecipeVersionElectric.assemblyVersionId`
+reach production with the same release
+([scripts/add-mrp-electric-assembly-versions.sql](scripts/add-mrp-electric-assembly-versions.sql)).
+
 Tables that exist in the production database but are still **not declared here**,
 because app repositories created them with their own scripts (5 November 2026
 audit, see [docs/database-audit-2026-11.md](docs/database-audit-2026-11.md)):
-MRP `MrpRecipeVersionAmendment`,
-`MrpRecipeVersionDocumentLink`, `MrpRecipeVersionScope`, `mrp_one_shot_script`;
 Tasks `TaskAttachment`, `TaskIntegration`, `TaskUserSettings`; the Zeron
 material checker's `Zeron*` tables (its own Prisma schema, which re-declares
 `User`, `Account`, `ToolCard` and `ToolCardAccess` as a read-only subset). The
-`neon_auth` schema belongs to Neon Auth, not to a MEAVO app. Conversely
-`MrpElectricAssemblyVersion` is declared here but has no production table.
+`neon_auth` schema belongs to Neon Auth, not to a MEAVO app.
 
 Inventory uses the shared `BoothProductFamily` and `BoothUnitStatus` enums. Its
 physical `InventoryUnit` identities are independent of Sales `BoothUnit` demand
