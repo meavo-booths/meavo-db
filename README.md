@@ -58,10 +58,11 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Factory floor & planning | factory | FactoryStation*, FactoryBoothModel, FactoryElement, FactoryColor, FactoryBoothOption, FactoryProduction*, FactoryStationWorkItem, FactoryStationIssue, FactoryPanelScrap*, FactorySetting, FactoryWorkSession, FactoryQuota, FactoryScheduleTaskOverride, FactoryDevice, FactoryCnc*, FactoryPlanning*, FactorySite, FactoryBoothVersionCode, FactoryBatchProductionOption, FactoryBoothProductionOption, FactoryWorker, FactoryStationAssignment, FactoryStationBreak, FactoryPallet, FactoryPalletLine, FactoryPalletHold, FactoryModelPanelEffort, FactoryPanelOrder, FactoryPanelOrderEvent, FactoryPanelOrderScrapReport |
 | Clock-In | clock | ClockWorker, ClockCardBinding, ClockPendingUid, ClockUnassignedTap, ClockEvent, ClockWorkSettings, ClockDevice, ClockDeviceEvent, ClockExcludedDay (snake_case tables via `@@map`) |
 | Spare parts / panels (RP) | rp | RpRequest, RpLineItem, RpInternalProductionRow, RpPhoto, RpSheetSyncOutbox, RpSheetRowMap, RpAddressBookEntry, RpPanelCatalogOption, RpExportTrackingRow, RpNumSequence, RpIpNumSequence, RpAutomationState, RpLifecycleEvent, RpPartMrpMap, RpPanelMrpMap, RpSparePart, RpPanelOption |
-| Task management | tasks | TaskWorkspace, TaskWorkspaceMember, TaskBoardColumn, Task, TaskAssignee, TaskExternalLink, TaskComment |
+| Task management | tasks | TaskWorkspace, TaskWorkspaceMember, TaskBoardColumn, Task, TaskAssignee, TaskExternalLink, TaskComment, TaskAttachment, TaskIntegration, TaskUserSettings |
 | Feature requests | requests | FeatureRequest, FeatureRequestVote, FeatureRequestAttachment |
 | Partner stock | stock | StockPartner, StockPartnerVisit |
 | Physical booth inventory | inventory | BoothFamily (booth catalogue, read by every app), ProductionBatch (batch master), InventoryAccess, InventoryWarehouse*, InventorySpot, InventoryPallet*, InventoryFactory, InventoryBatch, InventoryFinish, InventoryCatalogMapping, InventoryUnit, InventoryDemand*, InventorySuggestion, InventoryAllocation, InventoryExportLine, InventorySerialSequence, InventoryTransfer*, InventoryPreparationTask, InventoryAuditEvent, InventoryOperation, InventoryIntegrationEvent; also writes `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` |
+| Zeron material checker | zeron-material-checker | ZeronSheetState, ZeronImportRun, ZeronImportedTab, ZeronDeliveryRow, ZeronAcceptedUnitCost (the app keeps its own local schema; MRP reads `ZeronDeliveryRow`) |
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.
@@ -83,13 +84,16 @@ here since 0.102.0, exactly as production has them
 reach production with the same release
 ([scripts/add-mrp-electric-assembly-versions.sql](scripts/add-mrp-electric-assembly-versions.sql)).
 
-Tables that exist in the production database but are still **not declared here**,
-because app repositories created them with their own scripts (5 November 2026
-audit, see [docs/database-audit-2026-11.md](docs/database-audit-2026-11.md)):
-Tasks `TaskAttachment`, `TaskIntegration`, `TaskUserSettings`; the Zeron
-material checker's `Zeron*` tables (its own Prisma schema, which re-declares
-`User`, `Account`, `ToolCard` and `ToolCardAccess` as a read-only subset). The
-`neon_auth` schema belongs to Neon Auth, not to a MEAVO app.
+Since 0.103.0 every public table in the production database is declared here.
+The last ones, which app repositories had created with their own scripts (5 November
+2026 audit, see [docs/database-audit-2026-11.md](docs/database-audit-2026-11.md)),
+are the Tasks tables `TaskAttachment`, `TaskIntegration` and `TaskUserSettings` and
+the Zeron material checker's five `Zeron*` tables and two enums, declared exactly as
+production has them
+([scripts/align-production-drift-2026-11.sql](scripts/align-production-drift-2026-11.sql)).
+The Zeron app still keeps its own Prisma schema, which re-declares `User`,
+`Account`, `ToolCard` and `ToolCardAccess` as a read-only subset and is never
+pushed. The `neon_auth` schema belongs to Neon Auth, not to a MEAVO app.
 
 Inventory uses the shared `BoothProductFamily` and `BoothUnitStatus` enums. Its
 physical `InventoryUnit` identities are independent of Sales `BoothUnit` demand

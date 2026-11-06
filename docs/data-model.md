@@ -1,6 +1,6 @@
 # Data model — meavo-db
 
-The canonical schema lives **in this repo**: `prisma/schema.prisma` (243 models, 99 enums at v0.101.0; 231 and 97 at v0.100.0, whose per-table inventory with production row counts is [audit/tables-2026-11.csv](audit/tables-2026-11.csv)). This is the only repo allowed to alter the shared MEAVO Neon Postgres database; every app repo consumes it read-only via the `@meavo/db` git dependency and runs `prisma generate` only.
+The canonical schema lives **in this repo**: `prisma/schema.prisma` (255 models, 103 enums at v0.103.0; 243 and 99 at v0.101.0; 231 and 97 at v0.100.0, whose per-table inventory with production row counts is [audit/tables-2026-11.csv](audit/tables-2026-11.csv)). This is the only repo allowed to alter the shared MEAVO Neon Postgres database; every app repo consumes it read-only via the `@meavo/db` git dependency and runs `prisma generate` only.
 
 Pinned version: apps pin a git tag, e.g. `"@meavo/db": "git+https://github.com/meavo-booths/meavo-db.git#v0.13.0"` — current version in `package.json`.
 
@@ -25,10 +25,11 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Factory floor + planning | factory | `FactoryStation*`, `FactoryProduction*`, `FactoryPlanning*`, `FactoryDevice`, `FactoryCnc*`, `FactoryWorker`, `FactoryPallet*`, `FactoryModelPanelEffort`, `FactoryPanelOrder*` (the last four groups were runtime DDL in the Factory app until [add-factory-floor-tables.sql](../scripts/add-factory-floor-tables.sql)) |
 | RP spare parts / panels | rp | `RpRequest`, `RpLineItem`, `RpInternalProductionRow`, `RpSheetSyncOutbox`, `RpLifecycleEvent`, ... |
 | Clock-In | clock | clock-in / time-tracking models (see `scripts/add-clock-tables.sql`) |
-| Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink`, `TaskComment` |
+| Task management | tasks | `TaskWorkspace`, `TaskBoardColumn`, `Task`, `TaskAssignee`, `TaskExternalLink`, `TaskComment`, `TaskAttachment`, `TaskIntegration`, `TaskUserSettings` |
 | Feature requests | requests | `FeatureRequest`, `FeatureRequestVote`, `FeatureRequestAttachment` (`FeatureRequestType`, `FeatureRequestImportance`) |
 | Partner stock | stock | `StockPartner`, `StockPartnerVisit` (stock quantities stay in the Ops Google Sheet) |
 | Physical booth inventory | inventory | `BoothFamily` and `ProductionBatch` (shared masters, see below), `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
+| Zeron material checker | zeron-material-checker | `ZeronSheetState`, `ZeronImportRun`, `ZeronImportedTab`, `ZeronDeliveryRow`, `ZeronAcceptedUnitCost` (the app keeps its own local schema and never pushes it; MRP reads `ZeronDeliveryRow` with raw SQL) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 
@@ -461,6 +462,33 @@ updated). [align-forecast-fk-and-bom-index-names.sql](../scripts/align-forecast-
 brings databases built from older schemas to the same state and changes nothing on
 production or staging. Neither change alters the generated Prisma client's field
 names: `map:` sets only the database name.
+
+**Production drift declared (0.103.0).** The 6 November 2026 comparison of the
+production catalog with the schema found objects production had and the schema
+did not. They are now declared as production has them, and
+[align-production-drift-2026-11.sql](../scripts/align-production-drift-2026-11.sql)
+creates them in databases built from older schemas (it changes nothing on
+production):
+
+- `DEFAULT CURRENT_TIMESTAMP` on 14 `updatedAt` columns (`@default(now()) @updatedAt`)
+  and empty-array defaults on `Assembly.issueCategories` and `Questionnaire.eventTypes`.
+- `Deal.xeroFinalSyncedAt` and `Deal.xeroPaymentSyncedAt` are `timestamptz`
+  (`@db.Timestamptz`); `mrp_one_shot_script.ran_at` has no explicit precision.
+- `Assembly.issueCategory`, the legacy single category that `issueCategories`
+  replaced. The Assembly app no longer writes it; dropping it is the Assembly
+  owner's decision and needs its own reviewed change.
+- The Tasks tables `TaskAttachment`, `TaskIntegration` and `TaskUserSettings`, and
+  the Zeron material checker's tables and enums (own section at the end of the
+  schema). `TaskIntegration.userId`, `TaskUserSettings.userId` and
+  `ZeronAcceptedUnitCost.deliveryRowId` have no foreign key in production and none
+  is declared.
+
+What the schema still cannot express stays in SQL only and is left as production
+has it: 73 CHECK constraints, 7 partial or expression unique indexes, 6 unique
+constraints that Prisma models as unique indexes, `NOT NULL` on five scalar-list
+columns, and the value order of three enums (`FeatureRequestType`,
+`InventoryAllocationKind`, `PaymentTerms`), which is not changed because it sets
+dropdown order.
 
 **Factory schedule task overrides.** `FactoryScheduleTaskOverride` is keyed by
 `(batchId, elementId, processStep, assignedStationId)`: one panel job can sit on

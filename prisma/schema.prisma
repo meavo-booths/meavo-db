@@ -88,6 +88,7 @@ model User {
   taskAssignments       TaskAssignee[]
   taskCommentsAuthored  TaskComment[]         @relation("TaskCommentAuthor")
   taskCommentsResolved  TaskComment[]         @relation("TaskCommentResolver")
+  taskAttachmentsUploaded TaskAttachment[]    @relation("TaskAttachmentUploader")
 
   notifications           Notification[]
   notificationPreferences UserNotificationPreference[]
@@ -119,6 +120,9 @@ model User {
   inventoryAccess           InventoryAccess[]
   inventoryAuditEvents      InventoryAuditEvent[]
   inventoryAllocations      InventoryAllocation[] @relation("InventoryAllocationConfirmer")
+
+  zeronImportRunsTriggered ZeronImportRun[]        @relation("ZeronImportRunTrigger")
+  zeronUnitCostsMarked     ZeronAcceptedUnitCost[] @relation("ZeronAcceptedUnitCostMarker")
 }
 
 model Account {
@@ -418,7 +422,7 @@ model SignatureRequest {
   signedDocumentKey     String?
   employeeDocumentId    String?                @unique
   createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  updatedAt             DateTime               @default(now()) @updatedAt
 
   generatedDocument GeneratedDocument @relation(fields: [generatedDocumentId], references: [id], onDelete: Cascade)
   subjectUser       User              @relation("SignatureRequestSubject", fields: [subjectUserId], references: [id], onDelete: Restrict)
@@ -440,7 +444,7 @@ model LibraryAsset {
   mimeType     String?
   storageKey   String?
   uploadedById String?
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
   createdAt    DateTime @default(now())
 
   uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
@@ -456,7 +460,7 @@ model UsefulLink {
   sortOrder   Int      @default(0)
   createdById String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
 
   createdBy User? @relation("UsefulLinkAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -473,7 +477,7 @@ model LibraryVideo {
   sortOrder   Int      @default(0)
   createdById String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
 
   createdBy User? @relation("LibraryVideoAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -661,7 +665,7 @@ model AssemblyTeam {
   name      String   @unique
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   members AssemblyTeamMember[]
 }
@@ -675,7 +679,7 @@ model AssemblyTeamMember {
   phone     String   @default("")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   team        AssemblyTeam             @relation(fields: [teamId], references: [id], onDelete: Restrict)
   assignments AssemblyTeamAssignment[]
@@ -705,7 +709,7 @@ model PartnerNotificationPreference {
   eventType String
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   partner AssemblyPartner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
@@ -754,7 +758,11 @@ model Assembly {
   status          String?
   priority        String?
   comments        String?
-  issueCategories String[]
+  issueCategories String[] @default([])
+  /// Legacy single category, superseded by issueCategories and no longer written by the
+  /// Assembly app. Declared because production keeps the column; dropping it is the
+  /// Assembly owner's decision.
+  issueCategory   String?
 
   /// Google Calendar mirror (Operations-UK) for internal-team events. App-only.
   googleCalendarEventId   String?
@@ -784,7 +792,7 @@ model Questionnaire {
   /// Staff-facing label, e.g. "Assembly" or "Short visit".
   name        String   @default("")
   /// Assembly event types this questionnaire is served for.
-  eventTypes  AssemblyEventType[]
+  eventTypes  AssemblyEventType[] @default([])
   photoStep   QuestionnairePhotoStep @default(REQUIRED)
   isPublished Boolean  @default(false)
   createdAt   DateTime @default(now())
@@ -1508,7 +1516,7 @@ model Deal {
   /// Second Xero invoice for 50/50 deals (final 50% balance).
   xeroFinalInvoiceId     String?   @unique
   xeroFinalInvoiceNumber String?
-  xeroFinalSyncedAt      DateTime?
+  xeroFinalSyncedAt      DateTime? @db.Timestamptz
   xeroFinalSyncError     String?
 
   /// Set by the Sales payment sync when Xero reports the linked invoice
@@ -1531,7 +1539,7 @@ model Deal {
   xeroBrandingThemeName String?
 
   /// Set when payment status was first synced from Xero; locks manual payment edits.
-  xeroPaymentSyncedAt DateTime?
+  xeroPaymentSyncedAt DateTime? @db.Timestamptz
 
   /// Cash collected so far, in the invoice currency, excl. VAT. Set by the Xero
   /// payment sync and manual payment edits (owner: sales). Null until first set.
@@ -1625,7 +1633,7 @@ model SalesPayment {
   amountEur       Decimal? @db.Decimal(18, 2)
   reference       String   @default("")
   recordedAt      DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  updatedAt       DateTime @default(now()) @updatedAt
   voidedAt        DateTime?
   /// Historical actor identifier, retained independently of account deletion.
   recordedById    String?
@@ -2339,7 +2347,7 @@ model NotificationEventSetting {
   emailEnabled Boolean  @default(true)
   inAppEnabled Boolean  @default(true)
   slackEnabled Boolean  @default(false)
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
 }
 
 // In-app bell notification items, written by gateway's outbox processor and
@@ -2369,7 +2377,7 @@ model UserNotificationPreference {
   eventType String
   channel   NotificationChannel
   enabled   Boolean             @default(true)
-  updatedAt DateTime            @updatedAt
+  updatedAt DateTime            @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -2385,7 +2393,7 @@ model AppAnnouncement {
   publishedAt DateTime @default(now())
   createdById String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
 
   createdBy User? @relation("AppAnnouncementAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
@@ -2755,7 +2763,7 @@ model MrpMaterialCategory {
   sortOrder  Int      @default(0)
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime @default(now()) @updatedAt
 
   parentId String?
   parent   MrpMaterialCategory?  @relation("MrpMaterialCategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
@@ -2880,7 +2888,7 @@ model MrpElectricAssembly {
   sortOrder    Int      @default(0)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime @default(now()) @updatedAt
 
   boothModel            MrpBoothModel              @relation(fields: [boothModelId], references: [id], onDelete: Cascade)
   lines                 MrpElectricAssemblyLine[]
@@ -2998,7 +3006,7 @@ model MrpRecipeVersionDocumentLink {
 /// cleanup-recipe-versions); those scripts write it with raw SQL.
 model MrpOneShotScript {
   name  String   @id
-  ranAt DateTime @default(now()) @map("ran_at") @db.Timestamptz(6)
+  ranAt DateTime @default(now()) @map("ran_at") @db.Timestamptz
 
   @@map("mrp_one_shot_script")
 }
@@ -4868,6 +4876,7 @@ model Task {
   assignees   TaskAssignee[]
   externalLinks TaskExternalLink[]
   comments    TaskComment[]
+  attachments TaskAttachment[]
 
   @@index([workspaceId, columnId, position])
   @@index([dueDate])
@@ -4926,6 +4935,49 @@ model TaskComment {
   @@index([taskId, createdAt])
   @@index([parentId])
   @@index([authorId])
+}
+
+/// Files attached to a task; the bytes live in object storage under storageKey.
+model TaskAttachment {
+  id           String   @id @default(cuid())
+  taskId       String
+  storageKey   String
+  fileName     String
+  mimeType     String
+  byteSize     Int
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation("TaskAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+}
+
+/// Per-user export integration (provider such as a calendar); userId has no foreign key in production.
+model TaskIntegration {
+  id            String    @id @default(cuid())
+  userId        String
+  provider      String
+  accessToken   String?
+  metadata      Json      @default("{}")
+  enabled       Boolean   @default(true)
+  syncDirection String    @default("export")
+  lastSyncAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+/// Per-user Tasks settings, keyed by User.id without a foreign key (as production has it).
+model TaskUserSettings {
+  userId                    String   @id
+  slackNotificationsEnabled Boolean  @default(false)
+  slackWebhookUrl           String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @default(now()) @updatedAt
 }
 
 // ---- Feature requests (owner: requests, requests.meavo.app) ----
@@ -5039,7 +5091,7 @@ model StockPartner {
   createdById  String
   lastLoginAt  DateTime?
   createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  updatedAt    DateTime             @default(now()) @updatedAt
 
   createdBy User   @relation("StockPartnerCreator", fields: [createdById], references: [id], onDelete: Restrict)
   visits    StockPartnerVisit[]
@@ -5865,4 +5917,112 @@ model InventoryExportLine {
   @@index([loadedAt])
   @@index([destinationWarehouseId])
   @@index([transferId])
+}
+
+// ---- Zeron material checker (owner: zeron-material-checker) ----
+// The Zeron app keeps its own local Prisma schema for these tables and never
+// pushes it; MRP reads ZeronDeliveryRow with raw SQL. Declared here as
+// production has them (0.103.0).
+
+enum ZeronImportSourceType {
+  GOOGLE_SHEET_TAB
+  CSV_UPLOAD
+}
+
+enum ZeronImportStatus {
+  PENDING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+model ZeronSheetState {
+  id            String    @id @default("default")
+  spreadsheetId String    @default("")
+  lastSyncedAt  DateTime?
+  lastError     String?
+  updatedAt     DateTime  @default(now()) @updatedAt
+}
+
+model ZeronImportRun {
+  id            String                @id @default(cuid())
+  sourceType    ZeronImportSourceType
+  sourceName    String
+  status        ZeronImportStatus     @default(PENDING)
+  triggeredById String?
+  rowCount      Int                   @default(0)
+  skippedCount  Int                   @default(0)
+  errorCount    Int                   @default(0)
+  errors        String                @default("[]")
+  createdAt     DateTime              @default(now())
+  completedAt   DateTime?
+
+  triggeredBy  User?              @relation("ZeronImportRunTrigger", fields: [triggeredById], references: [id], onDelete: SetNull)
+  deliveryRows ZeronDeliveryRow[]
+  importedTabs ZeronImportedTab[]
+
+  @@index([createdAt])
+  @@index([sourceType])
+}
+
+model ZeronImportedTab {
+  id            String   @id @default(cuid())
+  spreadsheetId String
+  tabName       String
+  contentHash   String
+  rowCount      Int      @default(0)
+  importedAt    DateTime @default(now())
+  importRunId   String?
+
+  importRun ZeronImportRun? @relation(fields: [importRunId], references: [id], onDelete: SetNull)
+
+  @@unique([spreadsheetId, tabName])
+  @@index([spreadsheetId])
+}
+
+model ZeronDeliveryRow {
+  id                String                @id @default(cuid())
+  importRunId       String
+  sourceKey         String                @unique
+  processNumber     String
+  deliveryDate      DateTime
+  itemCode          String
+  itemName          String                @default("")
+  stockQuantity     String?
+  unit              String?
+  unitCost          String
+  totalCost         String?
+  warehouse         String?
+  extraCost         String?
+  itemType          String?
+  sourceFileName    String?
+  attachmentPresent Boolean               @default(false)
+  sourceTab         String?
+  sourceType        ZeronImportSourceType
+
+  importRun ZeronImportRun @relation(fields: [importRunId], references: [id], onDelete: Cascade)
+
+  @@index([itemCode])
+  @@index([deliveryDate])
+  @@index([processNumber])
+  @@index([attachmentPresent])
+  @@index([importRunId])
+}
+
+/// Unit costs a user accepted as correct for an item; deliveryRowId has no foreign key in production.
+model ZeronAcceptedUnitCost {
+  id            String   @id @default(cuid())
+  itemCode      String
+  itemName      String   @default("")
+  unitCost      String
+  note          String   @default("")
+  deliveryRowId String?
+  markedById    String?
+  createdAt     DateTime @default(now())
+
+  markedBy User? @relation("ZeronAcceptedUnitCostMarker", fields: [markedById], references: [id], onDelete: SetNull)
+
+  @@unique([itemCode, unitCost])
+  @@index([itemCode])
+  @@index([markedById])
 }
