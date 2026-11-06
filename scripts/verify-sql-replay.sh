@@ -31,6 +31,7 @@ REPLAY=(
   scripts/add-mrp-recipe-version-tables.sql
   scripts/add-mrp-electric-assembly-versions.sql
   scripts/align-forecast-fk-and-bom-index-names.sql
+  scripts/align-production-drift-2026-11.sql
 )
 
 # Non-additive statements reviewed as unable to lose data, each exactly as
@@ -47,6 +48,9 @@ REVIEWED=(
   # scripts/align-forecast-fk-and-bom-index-names.sql: renames the unique index to the
   # name production and staging have; same columns, same uniqueness.
   'ALTER INDEX "MrpElementBomLine_recipeVersionId_boothElementId_colour_mar_key" RENAME TO "MrpElementBomLine_recipeVersionId_boothElementId_colour_market_";'
+  # scripts/align-production-drift-2026-11.sql: timestamp(3) -> timestamptz, reading the
+  # stored UTC values as UTC; no precision is lost. Production already has timestamptz.
+  'ALTER TABLE "Deal" ALTER COLUMN "xeroFinalSyncedAt" SET DATA TYPE TIMESTAMPTZ, ALTER COLUMN "xeroPaymentSyncedAt" SET DATA TYPE TIMESTAMPTZ;'
 )
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

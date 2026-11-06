@@ -24,7 +24,7 @@ Every app in the org consumes this package; none may alter the schema themselves
 | `meavo-tickets` | Owns feature requests section (requests.meavo.app) |
 | `meavo-stock` | Owns partner stock section (stock.meavo.app) |
 | `meavo-inventory` | Owns physical booth inventory section (inventory.meavo.app); also writes three `BoothUnit` columns |
-| `zeron-material-checker` | Keeps its own Prisma schema with a read-only subset of the identity tables plus its `Zeron*` tables; not a consumer of this package |
+| `zeron-material-checker` | Owns the Zeron section (declared here since 0.103.0 as production has it); keeps its own Prisma schema with a read-only subset of the identity tables and never pushes it; not a consumer of this package |
 | `meavo-agent-templates` | Org-wide standards these docs follow |
 
 ## Stack decisions
