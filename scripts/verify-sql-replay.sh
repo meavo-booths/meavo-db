@@ -26,6 +26,8 @@ REPLAY=(
   scripts/add-production-batch-master.sql
   scripts/add-booth-identity-links.sql
   scripts/add-factory-floor-tables.sql
+  scripts/add-mrp-recipe-version-tables.sql
+  scripts/add-mrp-electric-assembly-versions.sql
 )
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
