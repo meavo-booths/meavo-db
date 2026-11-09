@@ -560,6 +560,16 @@ for audit. Nullable Deal links use SET NULL to retain financial history.
 `SalesPaymentWindow` tracks complete imported ranges; `SalesPaymentSync` leases
 imports and records availability. Apply `scripts/sales-payment-history.sql`.
 
+## Sales Discount RRP (0.105.0)
+
+`Product.discountRrp` is a nullable third catalog price (in the product's
+`currency`) used on Retail deals only; null means the product has none.
+`QuoteLineItem.discountRrpApplied` marks a line whose FIXED discount was set from
+it, so Sales can recompute the discount on a currency change and clear it on a
+switch to Trade. The line keeps `unitPrice` at the Retail price; totals, PDF and
+Xero read the existing discount fields. Apply `scripts/sales-discount-rrp.sql`
+(two additive columns; older clients ignore both).
+
 ## Assembly "Delivery Only" event type
 
 `AssemblyEventType` gains `DELIVERY_ONLY` for visits where MEAVO only delivers the
