@@ -1186,6 +1186,8 @@ model Product {
   /// Markets this product is sold in. No rows = all markets.
   availability ProductAvailability[]
 
+  auditLogs ProductAuditLog[]
+
   @@index([isActive])
   @@index([kind])
   @@index([version])
@@ -1615,6 +1617,29 @@ model DealAuditLog {
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([dealId, createdAt])
+  @@index([actorUserId])
+}
+
+/// Field-level change history for Product rows (sales app), written by the
+/// sales app around every product write (forms, CSV import, Xero sync). Covers
+/// the product's own fields plus its markets and add-on booth restrictions.
+/// actorUserId is the acting User.id (no FK, like DealAuditLog) and is null for
+/// non-request writes. Rows go with the product when it is deleted.
+model ProductAuditLog {
+  id          String   @id @default(cuid())
+  productId   String
+  actorUserId String?
+  /// "CREATE" | "UPDATE".
+  action      String
+  /// Where the write came from: "FORM" | "CSV_IMPORT" | "XERO_SYNC".
+  source      String   @default("FORM")
+  /// Array of { field, before, after } entries for the changed fields.
+  changes     Json
+  createdAt   DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
   @@index([actorUserId])
 }
 

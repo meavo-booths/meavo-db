@@ -35,6 +35,7 @@ REPLAY=(
   scripts/drop-assembly-issue-category.sql
   scripts/relax-inventory-serial-sequence-check.sql
   scripts/sales-discount-rrp.sql
+  scripts/sales-product-audit-log.sql
 )
 
 # Non-additive statements reviewed as unable to lose data, each exactly as

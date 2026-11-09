@@ -570,6 +570,17 @@ switch to Trade. The line keeps `unitPrice` at the Retail price; totals, PDF and
 Xero read the existing discount fields. Apply `scripts/sales-discount-rrp.sql`
 (two additive columns; older clients ignore both).
 
+## Sales product change log (0.106.0)
+
+`ProductAuditLog` is the per-product counterpart of `DealAuditLog`: one row per
+product write that changed something, with `action` (`CREATE` / `UPDATE`),
+`source` (`FORM`, `CSV_IMPORT`, `XERO_SYNC`), the acting `actorUserId` (scalar,
+no FK; null = system) and `changes` as `[{ field, before, after }]`. Sales writes
+it explicitly around each product write so that markets and add-on booth
+restrictions (child tables) appear as fields. Rows cascade with the product.
+Apply `scripts/sales-product-audit-log.sql` (one new table; older clients ignore
+it).
+
 ## Assembly "Delivery Only" event type
 
 `AssemblyEventType` gains `DELIVERY_ONLY` for visits where MEAVO only delivers the
