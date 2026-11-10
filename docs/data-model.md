@@ -14,7 +14,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `EmployeeCommission`, `DocumentTemplate*`, `GeneratedDocument`, `SignatureRequest`, `LibraryAsset`, `LibraryVideo`, `UsefulLink`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner` (incl. `phone`), `Questionnaire*`, `QuestionnaireSubmission` (incl. `notes`), `Resource*`, `SheetImportState` |
-| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `ClientMergeAudit`, `Deal`, `DealLabel`, `DealLabelAssignment`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
+| Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `ClientMergeAudit`, `Deal`, `DealLabel`, `DealLabelAssignment`, `DealLabelApprovalRequest`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
 | Sales payments | sales | `SalesPayment`, `SalesPaymentWindow`, `SalesPaymentSync` |
 | HubSpot integration | sales | `HubSpotMarketingSync`, `HubSpotMarketingForm`, `HubSpotMarketingSubmission`, `HubSpotLostReason`, `HubSpotDealSnapshot`, `HubSpotCampaignSyncState` |
 | Sales daily priorities | sales | `SalesRepIdentity`, `SalesPrioritySettings`, `SalesPriorityRun`, `SalesPriorityWorkItem`, `SalesOpportunitySnapshot`, `SalesCrmSnapshot`, `SalesCompanyResearch`, `SalesPriorityRecommendation`, `SalesPriorityFeedback` |
@@ -580,6 +580,24 @@ it explicitly around each product write so that markets and add-on booth
 restrictions (child tables) appear as fields. Rows cascade with the product.
 Apply `scripts/sales-product-audit-log.sql` (one new table; older clients ignore
 it).
+
+## Sales label approvals (0.107.0)
+
+`DealLabel.requiresApproval` marks a label that only a Super Admin may apply
+directly. When anyone else adds it to a quote or deal, Sales writes a
+`DealLabelApprovalRequest` (`PENDING`) instead of a `DealLabelAssignment`, so every
+existing reader of assignments (filters, feeds, reports, exports) keeps meaning
+"applied". Approving writes the assignment and sets `APPROVED`; rejecting sets
+`REJECTED` with the reason in `decisionNote`; deselecting sets `CANCELLED`.
+Decided rows are kept as history. `requestedByUserId` / `decidedByUserId` are
+scalars without a FK, as on `DealAuditLog`. Rows cascade with the deal and the
+label.
+
+Two rules exist only in SQL: a partial unique index allows one `PENDING` row per
+`(dealId, labelId)`, and `DealLabel_requiresApproval_check` restricts the flag to
+`STANDARD` labels that are neither `OA Invoice` nor HubSpot-managed. Apply
+`scripts/sales-label-approvals.sql` before the Sales consumer (one column, one
+enum, one table; older clients ignore all three).
 
 ## Assembly "Delivery Only" event type
 
