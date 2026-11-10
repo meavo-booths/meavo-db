@@ -1590,6 +1590,7 @@ model Deal {
   attachments      DealAttachment[]
   subscriptions    DealSubscription[]
   labels           DealLabelAssignment[]
+  labelApprovalRequests DealLabelApprovalRequest[]
 
   @@index([stage])
   @@index([dealDate])
@@ -1723,10 +1724,14 @@ model DealLabel {
   hubspotCampaignId String? @unique
   hubspotPortalId   String?
   hubspotArchived   Boolean @default(false)
+  /// When true, only a Super Admin applies the label directly; everyone else
+  /// raises a DealLabelApprovalRequest. STANDARD, non-HubSpot labels only (SQL check).
+  requiresApproval  Boolean @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  deals DealLabelAssignment[]
+  deals            DealLabelAssignment[]
+  approvalRequests DealLabelApprovalRequest[]
 
   @@index([kind, name])
 }
@@ -1749,6 +1754,38 @@ model DealLabelAssignment {
 
   @@id([dealId, labelId])
   @@index([labelId])
+}
+
+enum DealLabelApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// A request to apply an approval-required label to a quote/deal (sales app).
+/// A PENDING row is not an assignment: the label counts only once a Super Admin
+/// approves it and a DealLabelAssignment is written. Decided rows are history.
+/// At most one PENDING row per (dealId, labelId) (SQL-only partial unique index).
+/// User ids are scalars without a FK, as on DealAuditLog.
+model DealLabelApprovalRequest {
+  id                String                  @id @default(cuid())
+  dealId            String
+  labelId           String
+  status            DealLabelApprovalStatus @default(PENDING)
+  requestedByUserId String
+  requestedAt       DateTime                @default(now())
+  decidedByUserId   String?
+  decidedAt         DateTime?
+  /// Required reason on REJECTED; system note on automatic decisions.
+  decisionNote      String?
+
+  deal  Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  label DealLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, status])
+  @@index([labelId])
+  @@index([status, requestedAt])
 }
 
 /// Who receives deal update notifications (sales app). The deal's sales rep is
