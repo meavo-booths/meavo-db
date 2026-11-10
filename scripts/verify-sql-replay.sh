@@ -40,6 +40,7 @@ REPLAY=(
   scripts/assembly-submission-edits.sql
   scripts/add-factory-panel-order-cancel-reason.sql
   scripts/add-dev-backlog-tables.sql
+  scripts/sales-revenue-targets.sql
 )
 
 # Non-additive statements reviewed as unable to lose data, each exactly as
