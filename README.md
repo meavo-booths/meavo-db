@@ -63,6 +63,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | Partner stock | stock | StockPartner, StockPartnerVisit |
 | Physical booth inventory | inventory | BoothFamily (booth catalogue, read by every app), ProductionBatch (batch master), InventoryAccess, InventoryWarehouse*, InventorySpot, InventoryPallet*, InventoryFactory, InventoryBatch, InventoryFinish, InventoryCatalogMapping, InventoryUnit, InventoryDemand*, InventorySuggestion, InventoryAllocation, InventoryExportLine, InventorySerialSequence, InventoryTransfer*, InventoryPreparationTask, InventoryAuditEvent, InventoryOperation, InventoryIntegrationEvent; also writes `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` |
 | Zeron material checker | zeron-material-checker | ZeronSheetState, ZeronImportRun, ZeronImportedTab, ZeronDeliveryRow, ZeronAcceptedUnitCost (the app keeps its own local schema; MRP reads `ZeronDeliveryRow`) |
+| Dev backlog | dev | BacklogFamily, BacklogApp, BacklogItem, BacklogItemRelation, BacklogLink, BacklogComment, BacklogAttachment, BacklogSubscriber, BacklogActivity, BacklogOverviewPreference |
 
 Other apps may **read** tables they don't own (e.g. gateway reads assembly
 counts for tool-card stats) but should only **write** through the owner app.
