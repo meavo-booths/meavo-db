@@ -13,7 +13,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Identity & access | gateway | `User`, `Account`, `Team`, `TeamSubgroup`, `TeamMember`, `GatewayUserImportReceipt`, `ToolCard`, `ToolCardAccess`, `LoginThrottle` |
 | HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `EmployeeCommission`, `DocumentTemplate*`, `GeneratedDocument`, `SignatureRequest`, `LibraryAsset`, `LibraryVideo`, `UsefulLink`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
-| Assembly | assembly | `Assembly`, `AssemblyPartner` (incl. `phone`), `Questionnaire*`, `QuestionnaireSubmission` (incl. `notes`), `Resource*`, `SheetImportState` |
+| Assembly | assembly | `Assembly`, `AssemblyPartner` (incl. `phone`), `Questionnaire*`, `QuestionnaireSubmission` (incl. `notes`), `SubmissionEdit`, `Resource*`, `SheetImportState` |
 | Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `ClientMergeAudit`, `Deal`, `DealLabel`, `DealLabelAssignment`, `DealLabelApprovalRequest`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
 | Sales payments | sales | `SalesPayment`, `SalesPaymentWindow`, `SalesPaymentSync` |
 | HubSpot integration | sales | `HubSpotMarketingSync`, `HubSpotMarketingForm`, `HubSpotMarketingSubmission`, `HubSpotLostReason`, `HubSpotDealSnapshot`, `HubSpotCampaignSyncState` |
@@ -598,6 +598,16 @@ Two rules exist only in SQL: a partial unique index allows one `PENDING` row per
 `STANDARD` labels that are neither `OA Invoice` nor HubSpot-managed. Apply
 `scripts/sales-label-approvals.sql` before the Sales consumer (one column, one
 enum, one table; older clients ignore all three).
+
+## Assembly report edit log (0.108.0)
+
+A partner may edit their own submitted report for 2 days after first submitting
+it (`QuestionnaireSubmission.submittedAt` keeps the first submission time).
+`SubmissionEdit` records each change: `kind` (`ANSWER` / `NOTES` / `MEDIA`),
+the `questionId` for answers (scalar, no FK), a `label` (question text or file
+name at the time) and `before` / `after` display text. Rows cascade with the
+submission. Apply `scripts/assembly-submission-edits.sql` (one new table; older
+clients ignore it).
 
 ## Assembly "Delivery Only" event type
 
