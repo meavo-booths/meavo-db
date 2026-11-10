@@ -131,6 +131,7 @@ model User {
   backlogAttachmentsUploaded BacklogAttachment[] @relation("BacklogAttachmentUploader")
   backlogSubscriptions       BacklogSubscriber[] @relation("BacklogSubscriber")
   backlogActivity            BacklogActivity[]   @relation("BacklogActivityActor")
+  backlogOverviewPreferences BacklogOverviewPreference[] @relation("BacklogOverviewPreference")
 }
 
 model Account {
@@ -6194,6 +6195,7 @@ model BacklogApp {
 
   family BacklogFamily @relation(fields: [familyId], references: [id], onDelete: Restrict)
   items  BacklogItem[]
+  overviewPreferences BacklogOverviewPreference[]
 
   @@index([familyId, sortOrder])
 }
@@ -6358,4 +6360,19 @@ model BacklogActivity {
 
   @@index([itemId, createdAt])
   @@index([actorId])
+}
+
+/// Per-user overview board: which apps are shown, and in what order.
+model BacklogOverviewPreference {
+  userId    String
+  appId     String
+  position  Int
+  visible   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  user User       @relation("BacklogOverviewPreference", fields: [userId], references: [id], onDelete: Cascade)
+  app  BacklogApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@id([userId, appId])
+  @@index([userId, position])
 }

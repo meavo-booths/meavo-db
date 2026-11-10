@@ -359,4 +359,31 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+
+CREATE TABLE IF NOT EXISTS "BacklogOverviewPreference" (
+    "userId" TEXT NOT NULL,
+    "appId" TEXT NOT NULL,
+    "position" INTEGER NOT NULL,
+    "visible" BOOLEAN NOT NULL DEFAULT true,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "BacklogOverviewPreference_pkey" PRIMARY KEY ("userId","appId")
+);
+
+CREATE INDEX IF NOT EXISTS "BacklogOverviewPreference_userId_position_idx"
+    ON "BacklogOverviewPreference"("userId", "position");
+
+DO $$ BEGIN
+  ALTER TABLE "BacklogOverviewPreference"
+      ADD CONSTRAINT "BacklogOverviewPreference_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "BacklogOverviewPreference"
+      ADD CONSTRAINT "BacklogOverviewPreference_appId_fkey"
+      FOREIGN KEY ("appId") REFERENCES "BacklogApp"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 COMMIT;
