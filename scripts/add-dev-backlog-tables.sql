@@ -365,12 +365,14 @@ CREATE TABLE IF NOT EXISTS "BacklogOverviewPreference" (
     "appId" TEXT NOT NULL,
     "position" INTEGER NOT NULL,
     "visible" BOOLEAN NOT NULL DEFAULT true,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "BacklogOverviewPreference_pkey" PRIMARY KEY ("userId","appId")
 );
 
 CREATE INDEX IF NOT EXISTS "BacklogOverviewPreference_userId_position_idx"
     ON "BacklogOverviewPreference"("userId", "position");
+
+ALTER TABLE "BacklogOverviewPreference" ALTER COLUMN "updatedAt" DROP DEFAULT;
 
 DO $$ BEGIN
   ALTER TABLE "BacklogOverviewPreference"

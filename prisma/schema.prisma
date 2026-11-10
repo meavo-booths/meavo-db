@@ -901,6 +901,7 @@ model QuestionnaireSubmission {
   member   AssemblyTeamMember? @relation(fields: [memberId], references: [id], onDelete: Restrict)
   answers  QuestionAnswer[]
   photos   SubmissionPhoto[]
+  edits    SubmissionEdit[]
 
   @@unique([assemblyId, partnerId])
   @@index([partnerId])
@@ -919,6 +920,26 @@ model QuestionAnswer {
   question   Question                @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([submissionId, questionId])
+}
+
+/// One change a partner made to a report after first submitting it (the assembly
+/// app lets them edit for 2 days). before/after hold display text (e.g. "Yes",
+/// "Confirmed", the typed answer); label is the question text or file name at the
+/// time. questionId has no FK so the history survives questionnaire edits.
+model SubmissionEdit {
+  id           String   @id @default(cuid())
+  submissionId String
+  /// "ANSWER" | "NOTES" | "MEDIA".
+  kind         String
+  questionId   String?
+  label        String   @default("")
+  before       String   @default("")
+  after        String   @default("")
+  createdAt    DateTime @default(now())
+
+  submission QuestionnaireSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, createdAt])
 }
 
 model SubmissionPhoto {
@@ -3998,6 +4019,8 @@ model FactoryPanelOrder {
   qtyGood      Int                         @default(0)
   qtyScrap     Int                         @default(0)
   withdrawnAt  DateTime?
+  /// Why the schedule card was cancelled. Null while the order is open.
+  cancelReason String?
   createdAt    DateTime                    @default(now())
   updatedAt    DateTime                    @default(now()) @updatedAt
 

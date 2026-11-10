@@ -37,6 +37,8 @@ REPLAY=(
   scripts/sales-discount-rrp.sql
   scripts/sales-product-audit-log.sql
   scripts/sales-label-approvals.sql
+  scripts/assembly-submission-edits.sql
+  scripts/add-factory-panel-order-cancel-reason.sql
   scripts/add-dev-backlog-tables.sql
 )
 

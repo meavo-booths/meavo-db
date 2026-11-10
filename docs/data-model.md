@@ -13,7 +13,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Identity & access | gateway | `User`, `Account`, `Team`, `TeamSubgroup`, `TeamMember`, `GatewayUserImportReceipt`, `ToolCard`, `ToolCardAccess`, `LoginThrottle` |
 | HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `EmployeeCommission`, `DocumentTemplate*`, `GeneratedDocument`, `SignatureRequest`, `LibraryAsset`, `LibraryVideo`, `UsefulLink`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
-| Assembly | assembly | `Assembly`, `AssemblyPartner` (incl. `phone`), `Questionnaire*`, `QuestionnaireSubmission` (incl. `notes`), `Resource*`, `SheetImportState` |
+| Assembly | assembly | `Assembly`, `AssemblyPartner` (incl. `phone`), `Questionnaire*`, `QuestionnaireSubmission` (incl. `notes`), `SubmissionEdit`, `Resource*`, `SheetImportState` |
 | Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `ClientMergeAudit`, `Deal`, `DealLabel`, `DealLabelAssignment`, `DealLabelApprovalRequest`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
 | Sales payments | sales | `SalesPayment`, `SalesPaymentWindow`, `SalesPaymentSync` |
 | HubSpot integration | sales | `HubSpotMarketingSync`, `HubSpotMarketingForm`, `HubSpotMarketingSubmission`, `HubSpotLostReason`, `HubSpotDealSnapshot`, `HubSpotCampaignSyncState` |
@@ -30,7 +30,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Partner stock | stock | `StockPartner`, `StockPartnerVisit` (stock quantities stay in the Ops Google Sheet) |
 | Physical booth inventory | inventory | `BoothFamily` and `ProductionBatch` (shared masters, see below), `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
 | Zeron material checker | zeron-material-checker | `ZeronSheetState`, `ZeronImportRun`, `ZeronImportedTab`, `ZeronDeliveryRow`, `ZeronAcceptedUnitCost` (the app keeps its own local schema and never pushes it; MRP reads `ZeronDeliveryRow` with raw SQL) |
-| Dev backlog | dev | `BacklogFamily`, `BacklogApp`, `BacklogItem`, `BacklogItemRelation`, `BacklogLink`, `BacklogComment`, `BacklogAttachment`, `BacklogSubscriber`, `BacklogActivity` (engineering backlog at dev.meavo.app) |
+| Dev backlog | dev | `BacklogFamily`, `BacklogApp`, `BacklogItem`, `BacklogItemRelation`, `BacklogLink`, `BacklogComment`, `BacklogAttachment`, `BacklogSubscriber`, `BacklogActivity`, `BacklogOverviewPreference` (engineering backlog at dev.meavo.app) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 
@@ -600,7 +600,17 @@ Two rules exist only in SQL: a partial unique index allows one `PENDING` row per
 `scripts/sales-label-approvals.sql` before the Sales consumer (one column, one
 enum, one table; older clients ignore all three).
 
-## Dev backlog (0.108.0)
+## Assembly report edit log (0.108.0)
+
+A partner may edit their own submitted report for 2 days after first submitting
+it (`QuestionnaireSubmission.submittedAt` keeps the first submission time).
+`SubmissionEdit` records each change: `kind` (`ANSWER` / `NOTES` / `MEDIA`),
+the `questionId` for answers (scalar, no FK), a `label` (question text or file
+name at the time) and `before` / `after` display text. Rows cascade with the
+submission. Apply `scripts/assembly-submission-edits.sql` (one new table; older
+clients ignore it).
+
+## Dev backlog (0.110.0)
 
 dev.meavo.app is the engineering backlog for every Meavo app. `BacklogApp` rows
 (grouped by `BacklogFamily`) use the same keys as the Requests app's related apps
@@ -611,10 +621,11 @@ for the cross-app Focus list. Both ranks are fractional-index strings, so a move
 rewrites only the moved row. `severity` applies to bugs and `impact` to
 everything else. `sourceRequestId` holds the `FeatureRequest.id` an item was
 promoted from, without a foreign key, because requests owns that table.
-Comments are threaded, can be resolved and can be marked as decisions;
-attachments, subscribers and the activity history cascade with their item.
-Apply `scripts/add-dev-backlog-tables.sql` (new enums and tables only; older
-clients ignore them).
+`BacklogOverviewPreference` stores one person's column order and which apps they
+show on the board. Comments are threaded, can be resolved and can be marked as
+decisions; attachments, subscribers and the activity history cascade with their
+item. Apply `scripts/add-dev-backlog-tables.sql` (new enums and tables only;
+older clients ignore them).
 
 ## Assembly "Delivery Only" event type
 
