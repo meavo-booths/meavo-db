@@ -19,6 +19,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | HubSpot integration | sales | `HubSpotMarketingSync`, `HubSpotMarketingForm`, `HubSpotMarketingSubmission`, `HubSpotLostReason`, `HubSpotDealSnapshot`, `HubSpotCampaignSyncState` |
 | Sales daily priorities | sales | `SalesRepIdentity`, `SalesPrioritySettings`, `SalesPriorityRun`, `SalesPriorityWorkItem`, `SalesOpportunitySnapshot`, `SalesCrmSnapshot`, `SalesCompanyResearch`, `SalesPriorityRecommendation`, `SalesPriorityFeedback` |
 | Sales forecasts | sales | `SalesForecastSettings`, `SalesForecastRun`, `SalesForecastManualRun`, `SalesOpportunityForecastRun`, `SalesOpportunityForecastItem`, `SalesOpportunityQualification`, `SalesOpportunityQualificationEvent` |
+| Sales revenue targets | sales | `SalesRevenueTarget` |
 | Xero integration | sales | `XeroMarketThemeMapping`, `XeroMarketTaxMapping`, `XeroMarketAccountMapping`, `XeroMarketTaxAccountMapping`, `XeroUsStateMapping`, `XeroIntegrationSettings` |
 | Notifications | gateway | `NotificationOutbox`, `NotificationDelivery`, `NotificationEventSetting`, `Notification`, `UserNotificationPreference`, `AppAnnouncement` |
 | Manufacturing / MRP | mrp | `MrpDocument`, `MrpLineItem`, `MrpMaterial`, `MrpManufacturingBatch`, `MrpBatchUnit*`, `MrpElementBomLine`, `MrpRecipeVersion*`, `MrpElectric*`, `MrpStock*`, `MrpSheetSyncLog`, ... |
@@ -677,3 +678,7 @@ edited on the assembly. Null means the assembly still shows the sale. The sales 
 is not updated. Apply `scripts/assembly-visit-scope.sql` (two idempotent
 `ADD COLUMN IF NOT EXISTS`, no backfill) before a consumer that selects the columns.
 Rollback is `DROP COLUMN` of both; existing rows lose only the visit override.
+
+## Sales revenue targets (0.111.0)
+
+`SalesRevenueTarget` holds one EUR (excl. VAT) revenue target per `year`, `month` (1–12) and Sales `market`, unique on that triple. The Sales Ops Report (`/numbers/ops-report`) sums the rows for the selected markets and compares won revenue against them; Sales admins edit them in Sales settings. A missing row means no target. `market` is the label stored on `Deal.market`, with no foreign key, and `updatedById` is scalar attribution that survives account deletion. Apply the additive `scripts/sales-revenue-targets.sql` (table, unique index, and SQL-only CHECKs on `month` and `amountEur`) before the Sales release; rollback leaves the unused table in place.
