@@ -123,6 +123,14 @@ model User {
 
   zeronImportRunsTriggered ZeronImportRun[]        @relation("ZeronImportRunTrigger")
   zeronUnitCostsMarked     ZeronAcceptedUnitCost[] @relation("ZeronAcceptedUnitCostMarker")
+
+  backlogItemsOwned          BacklogItem[]       @relation("BacklogItemOwner")
+  backlogItemsCreated        BacklogItem[]       @relation("BacklogItemCreator")
+  backlogCommentsAuthored    BacklogComment[]    @relation("BacklogCommentAuthor")
+  backlogCommentsResolved    BacklogComment[]    @relation("BacklogCommentResolver")
+  backlogAttachmentsUploaded BacklogAttachment[] @relation("BacklogAttachmentUploader")
+  backlogSubscriptions       BacklogSubscriber[] @relation("BacklogSubscriber")
+  backlogActivity            BacklogActivity[]   @relation("BacklogActivityActor")
 }
 
 model Account {
@@ -6092,4 +6100,262 @@ model ZeronAcceptedUnitCost {
   @@unique([itemCode, unitCost])
   @@index([itemCode])
   @@index([markedById])
+}
+
+// ---- Dev backlog (owner: dev, dev.meavo.app) ----
+// Engineering backlog for every Meavo app: bugs, features, improvements and chores,
+// ranked per app plus one cross-app Focus list. Ranks are fractional-index strings.
+
+enum BacklogItemType {
+  BUG
+  FEATURE
+  IMPROVEMENT
+  CHORE
+}
+
+enum BacklogItemStatus {
+  TRIAGE
+  BACKLOG
+  NEXT
+  IN_PROGRESS
+  IN_REVIEW
+  ON_STAGING
+  RELEASED
+  WONT_DO
+}
+
+/// Bugs only; orders the pinned bug lane.
+enum BacklogSeverity {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+/// Features, improvements and chores only.
+enum BacklogImpact {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum BacklogEffort {
+  S
+  M
+  L
+}
+
+enum BacklogRelationKind {
+  BLOCKS
+  RELATES
+  DUPLICATE_OF
+}
+
+enum BacklogLinkKind {
+  PULL_REQUEST
+  COMMIT
+  REQUEST
+  TASK
+  DOC
+  OTHER
+}
+
+enum BacklogLinkState {
+  OPEN
+  MERGED
+  CLOSED
+}
+
+model BacklogFamily {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  apps BacklogApp[]
+}
+
+/// One row per app or repo the backlog tracks. `key` matches the Requests app's
+/// related-app keys and ToolCard.linkedAppKey where one exists.
+model BacklogApp {
+  id           String    @id @default(cuid())
+  key          String    @unique
+  name         String
+  familyId     String
+  description  String    @default("")
+  repoFullName String?
+  url          String?
+  sortOrder    Int       @default(0)
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  family BacklogFamily @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  items  BacklogItem[]
+
+  @@index([familyId, sortOrder])
+}
+
+model BacklogItem {
+  id                 String            @id @default(cuid())
+  /// Human-readable id shown as BL-<number>.
+  number             Int               @unique @default(autoincrement())
+  appId              String
+  parentId           String?
+  type               BacklogItemType
+  status             BacklogItemStatus @default(TRIAGE)
+  title              String
+  description        String            @default("")
+  acceptanceCriteria String            @default("")
+  needsDbChange      Boolean           @default(false)
+  severity           BacklogSeverity?
+  impact             BacklogImpact?
+  effort             BacklogEffort?
+  /// Order within the app.
+  rank               String
+  /// Order in the cross-app Focus list; set while status is NEXT.
+  focusRank          String?
+  /// Other BacklogApp keys this item touches.
+  alsoAffects        String[]          @default([])
+  ownerId            String?
+  createdById        String
+  /// FeatureRequest.id this was promoted from (no FK; requests owns that table).
+  sourceRequestId    String?
+  targetDate         DateTime?         @db.Date
+  wontDoReason       String?
+  startedAt          DateTime?
+  releasedAt         DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  app               BacklogApp            @relation(fields: [appId], references: [id], onDelete: Restrict)
+  parent            BacklogItem?          @relation("BacklogItemChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children          BacklogItem[]         @relation("BacklogItemChildren")
+  owner             User?                 @relation("BacklogItemOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy         User                  @relation("BacklogItemCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  outgoingRelations BacklogItemRelation[] @relation("BacklogRelationFrom")
+  incomingRelations BacklogItemRelation[] @relation("BacklogRelationTo")
+  links             BacklogLink[]
+  comments          BacklogComment[]
+  attachments       BacklogAttachment[]
+  subscribers       BacklogSubscriber[]
+  activity          BacklogActivity[]
+
+  @@index([appId, status, rank])
+  @@index([status, focusRank])
+  @@index([ownerId, status])
+  @@index([parentId])
+  @@index([createdById])
+  @@index([sourceRequestId])
+}
+
+/// Directed: `from` BLOCKS / RELATES / DUPLICATE_OF `to`.
+model BacklogItemRelation {
+  id        String              @id @default(cuid())
+  fromId    String
+  toId      String
+  kind      BacklogRelationKind
+  createdAt DateTime            @default(now())
+
+  from BacklogItem @relation("BacklogRelationFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   BacklogItem @relation("BacklogRelationTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId, kind])
+  @@index([toId])
+}
+
+model BacklogLink {
+  id           String            @id @default(cuid())
+  itemId       String
+  kind         BacklogLinkKind
+  url          String
+  title        String            @default("")
+  repoFullName String?
+  number       Int?
+  state        BacklogLinkState?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  item BacklogItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, url])
+  @@index([repoFullName, number])
+}
+
+model BacklogComment {
+  id               String    @id @default(cuid())
+  itemId           String
+  authorId         String
+  parentId         String?
+  body             String
+  isDecision       Boolean   @default(false)
+  mentionedUserIds String[]  @default([])
+  resolvedAt       DateTime?
+  resolvedById     String?
+  editedAt         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  item        BacklogItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  author      User                @relation("BacklogCommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  parent      BacklogComment?     @relation("BacklogCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     BacklogComment[]    @relation("BacklogCommentReplies")
+  resolvedBy  User?               @relation("BacklogCommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  attachments BacklogAttachment[]
+
+  @@index([itemId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
+}
+
+model BacklogAttachment {
+  id           String   @id @default(cuid())
+  itemId       String
+  commentId    String?
+  uploadedById String
+  storageKey   String
+  fileName     String
+  mimeType     String
+  sizeBytes    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  item       BacklogItem     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  comment    BacklogComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploadedBy User            @relation("BacklogAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([itemId])
+  @@index([commentId])
+}
+
+model BacklogSubscriber {
+  id        String   @id @default(cuid())
+  itemId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  item BacklogItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User        @relation("BacklogSubscriber", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, userId])
+  @@index([userId])
+}
+
+/// History of changes to an item: created, status, app, owner, rank, focus and so on.
+model BacklogActivity {
+  id        String   @id @default(cuid())
+  itemId    String
+  actorId   String?
+  action    String
+  fromValue String?
+  toValue   String?
+  createdAt DateTime @default(now())
+
+  item  BacklogItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  actor User?       @relation("BacklogActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([itemId, createdAt])
+  @@index([actorId])
 }

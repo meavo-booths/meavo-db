@@ -30,6 +30,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Partner stock | stock | `StockPartner`, `StockPartnerVisit` (stock quantities stay in the Ops Google Sheet) |
 | Physical booth inventory | inventory | `BoothFamily` and `ProductionBatch` (shared masters, see below), `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
 | Zeron material checker | zeron-material-checker | `ZeronSheetState`, `ZeronImportRun`, `ZeronImportedTab`, `ZeronDeliveryRow`, `ZeronAcceptedUnitCost` (the app keeps its own local schema and never pushes it; MRP reads `ZeronDeliveryRow` with raw SQL) |
+| Dev backlog | dev | `BacklogFamily`, `BacklogApp`, `BacklogItem`, `BacklogItemRelation`, `BacklogLink`, `BacklogComment`, `BacklogAttachment`, `BacklogSubscriber`, `BacklogActivity` (engineering backlog at dev.meavo.app) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 
@@ -598,6 +599,22 @@ Two rules exist only in SQL: a partial unique index allows one `PENDING` row per
 `STANDARD` labels that are neither `OA Invoice` nor HubSpot-managed. Apply
 `scripts/sales-label-approvals.sql` before the Sales consumer (one column, one
 enum, one table; older clients ignore all three).
+
+## Dev backlog (0.108.0)
+
+dev.meavo.app is the engineering backlog for every Meavo app. `BacklogApp` rows
+(grouped by `BacklogFamily`) use the same keys as the Requests app's related apps
+and `ToolCard.linkedAppKey`. Each `BacklogItem` belongs to exactly one app, has a
+human-readable `number` (shown as `BL-<number>`, from a serial column) and a
+`rank` that orders it within its app; items in `NEXT` also carry a `focusRank`
+for the cross-app Focus list. Both ranks are fractional-index strings, so a move
+rewrites only the moved row. `severity` applies to bugs and `impact` to
+everything else. `sourceRequestId` holds the `FeatureRequest.id` an item was
+promoted from, without a foreign key, because requests owns that table.
+Comments are threaded, can be resolved and can be marked as decisions;
+attachments, subscribers and the activity history cascade with their item.
+Apply `scripts/add-dev-backlog-tables.sql` (new enums and tables only; older
+clients ignore them).
 
 ## Assembly "Delivery Only" event type
 
