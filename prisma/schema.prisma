@@ -2384,6 +2384,24 @@ model SalesForecastManualRun {
   @@index([status, deadlineAt])
 }
 
+/// Monthly revenue target per market for the Sales Ops Report (EUR excl. VAT).
+/// market is a Sales market label as stored on Deal.market. A missing row means
+/// no target for that month and market.
+model SalesRevenueTarget {
+  id          String   @id @default(cuid())
+  year        Int
+  /// 1–12.
+  month       Int
+  market      String
+  amountEur   Decimal  @db.Decimal(14, 2)
+  /// Scalar editor attribution; deliberately no User foreign key.
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([year, month, market])
+}
+
 // ---- Notifications (owner: gateway) ----
 
 enum NotificationStatus {
