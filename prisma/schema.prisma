@@ -4010,6 +4010,8 @@ model FactoryPanelOrder {
   qtyGood      Int                         @default(0)
   qtyScrap     Int                         @default(0)
   withdrawnAt  DateTime?
+  /// Why the schedule card was cancelled. Null while the order is open.
+  cancelReason String?
   createdAt    DateTime                    @default(now())
   updatedAt    DateTime                    @default(now()) @updatedAt
 
