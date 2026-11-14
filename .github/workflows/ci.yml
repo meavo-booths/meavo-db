@@ -18,8 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     services:
       # Throwaway database for the SQL replay below; never a shared environment.
+      # Same major version as production (17): the SQL-only definitions in
+      # prisma/sql-only-objects.json are compared as the server prints them.
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: meavo
           POSTGRES_PASSWORD: meavo-ci-only
@@ -53,7 +55,9 @@ jobs:
 
       # Additive-only diff from the base commit, then every script listed in
       # scripts/verify-sql-replay.sh applied twice on a database built from the
-      # base schema; the result must equal prisma/schema.prisma.
+      # base schema; the result must equal prisma/schema.prisma, and the objects
+      # Prisma cannot see (CHECKs, partial and expression indexes, triggers,
+      # functions, sequences) must equal prisma/sql-only-objects.json.
       - name: Additive diff and SQL replay
         env:
           DATABASE_URL: postgresql://meavo:meavo-ci-only@127.0.0.1:5432/meavo_ci?sslmode=disable

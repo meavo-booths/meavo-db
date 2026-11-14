@@ -1450,6 +1450,9 @@ enum DealXeroRoutingMode {
 
 model Deal {
   id          String    @id @default(cuid())
+  /// MQ-00001, MQ-00002, ... Sales takes each new number from the SQL-only sequence
+  /// "SalesQuoteNumberSeq" (scripts/sales-quote-number-sequence.sql; meavo-db owns it,
+  /// never reset or restart it). A variation adds a letter and takes no number.
   quoteNumber String    @unique
   stage       DealStage @default(QUOTE)
 

@@ -14,6 +14,7 @@ Create `feat/`, `fix/`, or `chore/` branches from `staging` and open PRs explici
 - [ ] Agent docs updated if you added a new domain section or changed the release workflow
 - [ ] Destructive steps shipped as idempotent `scripts/*.sql`, not through `db:push`
 - [ ] New `scripts/*.sql` listed in `scripts/verify-sql-replay.sh`; CI replays them twice from the base schema and requires the result to equal `prisma/schema.prisma`
+- [ ] A new, changed or dropped SQL-only object (CHECK, partial or expression index, trigger, function, sequence) has its line in `prisma/sql-only-objects.json` added, replaced or deleted in the same PR; the failing CI step prints the line ([docs/data-model.md](docs/data-model.md) § SQL-only objects)
 - [ ] A non-additive statement that cannot lose data (such as widening a primary key) is added whole to `REVIEWED` in that script, with the reason, instead of weakening the check
 
 ## Branch naming and release path
@@ -32,6 +33,7 @@ Imperative sentence naming the schema change and the app it serves, e.g. "Add ta
 |-------|----------|
 | Data model | `prisma/schema.prisma`, inside the owning app's `// ---- ... ----` section |
 | Targeted / destructive migrations | `scripts/*.sql` (idempotent, with an `-- Apply:` header) |
+| What Prisma cannot declare (CHECKs, partial or expression indexes, triggers, functions, sequences) | a `scripts/*.sql` file, recorded in `prisma/sql-only-objects.json` |
 | Ownership matrix | `README.md` |
 | Agent / domain docs | `docs/`, `AGENTS.md` |
 

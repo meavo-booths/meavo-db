@@ -21,7 +21,7 @@ partial schema would drop the other apps' tables and columns.
 1. Edit `prisma/schema.prisma` on a `feat/*` branch.
 2. Validate: `npm run validate` (needs `DATABASE_URL` in `.env`). Confirm it targets an isolated non-production database.
 3. Review the SQL with `npm run diff`; test additive changes there with `npm run db:push`, or reviewed idempotent SQL through `prisma db execute` for ordering-sensitive/destructive changes.
-4. Open a PR against `staging` with the SQL, consumer compatibility checks, and rollback notes. CI (`Validate schema`) rejects a non-additive diff from the base branch (except whole statements reviewed in the script's `REVIEWED` list, each performed by a listed script), replays every script listed in `scripts/verify-sql-replay.sh` twice on a database built from the base schema, and requires the result to equal `prisma/schema.prisma`; list a new script there in the same PR. Run it locally with `DATABASE_URL=<disposable localhost database> scripts/verify-sql-replay.sh origin/staging`.
+4. Open a PR against `staging` with the SQL, consumer compatibility checks, and rollback notes. CI (`Validate schema`) rejects a non-additive diff from the base branch (except whole statements reviewed in the script's `REVIEWED` list, each performed by a listed script), replays every script listed in `scripts/verify-sql-replay.sh` twice on a database built from the base schema, and requires the result to equal `prisma/schema.prisma`; list a new script there in the same PR. It also checks the objects Prisma cannot see against [prisma/sql-only-objects.json](prisma/sql-only-objects.json) (see [SQL-only objects](#sql-only-objects)). Run it locally with `DATABASE_URL=<disposable localhost database> scripts/verify-sql-replay.sh origin/staging`.
 5. Follow [RELEASE_POLICY.md](RELEASE_POLICY.md): the only human gate is the staging → `main` release; its yes also covers the release tag and the release's production SQL.
 6. Prepare each affected app’s dependency bump as a feature PR against `staging`; production rollout requires its own approval.
 
@@ -51,7 +51,7 @@ from the canonical schema. Apps keep their own `prisma/seed.ts`.
 | HR & documents | gateway | CompanyProfile, Employee, EmployeeSalaryHistory, EmployeeCommission, EmployeeDocument, DocumentTemplate*, GeneratedDocument, SignatureRequest, LibraryAsset, LibraryVideo, UsefulLink, GatewaySheetRecord |
 | Vacation | hols | VacationRequest, UserAllowance, PublicHoliday |
 | Assembly | assembly | Assembly, AssemblyPartner, AssemblyTeam, AssemblyTeamMember, AssemblyTeamAssignment, PartnerNotificationPreference, Questionnaire*, Question*, Submission*, Resource*, SheetImportState |
-| Sales | sales | Product, ProductAuditLog, ProductFamilyInfo, ProductAvailability, ProductAddOnFamilyRestriction, Client* (incl. ClientLabel, ClientLabelAssignment, ClientEvent, ClientEventReceipt, ClientMergeAudit), Deal* (incl. DealSubscription, DealLabel, DealLabelAssignment, DealLabelApprovalRequest), QuoteLineItem, BoothUnit, SalesPayment, SalesPaymentWindow, SalesPaymentSync, HubSpotLostReason, HubSpotDealSnapshot, HubSpotMarketingSync, HubSpotMarketingForm, HubSpotMarketingSubmission, HubSpotCampaignSyncState, QuotePdfTemplate, QuotePdfMarketDefault, SalesRepIdentity, SalesPrioritySettings, SalesPriorityRun, SalesPriorityWorkItem, SalesOpportunitySnapshot, SalesCrmSnapshot, SalesCompanyResearch, SalesPriorityRecommendation, SalesPriorityFeedback, SalesForecastSettings, SalesForecastRun, SalesForecastManualRun, SalesOpportunityForecastRun, SalesOpportunityForecastItem, SalesOpportunityQualification, SalesOpportunityQualificationEvent, SalesRevenueTarget |
+| Sales | sales | Product, ProductAuditLog, ProductFamilyInfo, ProductAvailability, ProductAddOnFamilyRestriction, Client* (incl. ClientLabel, ClientLabelAssignment, ClientEvent, ClientEventReceipt, ClientMergeAudit), Deal* (incl. DealSubscription, DealLabel, DealLabelAssignment, DealLabelApprovalRequest), QuoteLineItem, BoothUnit, SalesPayment, SalesPaymentWindow, SalesPaymentSync, HubSpotLostReason, HubSpotDealSnapshot, HubSpotMarketingSync, HubSpotMarketingForm, HubSpotMarketingSubmission, HubSpotCampaignSyncState, QuotePdfTemplate, QuotePdfMarketDefault, SalesRepIdentity, SalesPrioritySettings, SalesPriorityRun, SalesPriorityWorkItem, SalesOpportunitySnapshot, SalesCrmSnapshot, SalesCompanyResearch, SalesPriorityRecommendation, SalesPriorityFeedback, SalesForecastSettings, SalesForecastRun, SalesForecastManualRun, SalesOpportunityForecastRun, SalesOpportunityForecastItem, SalesOpportunityQualification, SalesOpportunityQualificationEvent, SalesRevenueTarget; the sequence `SalesQuoteNumberSeq` (quote numbers) |
 | Xero | sales | XeroMarketThemeMapping, XeroMarketTaxMapping, XeroMarketAccountMapping, XeroMarketTaxAccountMapping, XeroUsStateMapping, XeroIntegrationSettings |
 | Notifications | gateway | NotificationOutbox, NotificationDelivery, NotificationEventSetting, Notification, UserNotificationPreference, AppAnnouncement |
 | Manufacturing / MRP | mrp | MrpUserProfile, MrpSupplier*, MrpDocument, MrpLineItem, MrpMaterial, MrpMaterialCategory, MrpStock*, MrpManufacturingBatch, MrpBatchUnit*, MrpRecipeException*, MrpProductionBatch*, MrpInventoryCount, MrpWarehouse, MrpBoothModel, MrpBoothElement, MrpElementBomLine, MrpBomMissingMaterialCode, MrpElectricModule*, MrpElectricAssembly*, MrpRecipeVersion*, MrpCorrectionLog, MrpSyncAttempt, MrpSheetSyncLog, MrpOneShotScript (`mrp_one_shot_script`) |
@@ -112,6 +112,26 @@ single physical booth, whose `serialNumber` is the planning sheet's 5-digit boot
 id. Factory, MRP and Sales rows point at them through nullable link columns;
 Factory and MRP write their own links, and Inventory alone writes
 `BoothUnit.inventoryUnitId`.
+
+## SQL-only objects
+
+Some of what the database holds cannot be written in `prisma/schema.prisma`, so
+`prisma migrate diff` never reports it: CHECK constraints, partial and expression
+indexes, triggers and their functions, and sequences. Scripts create them, and
+[prisma/sql-only-objects.json](prisma/sql-only-objects.json) lists every one with the
+definition PostgreSQL prints (98 at 0.112.0: 76 CHECK constraints, 7 partial indexes,
+1 expression index, 8 triggers, 4 functions, 2 sequences). CI fails when a script adds,
+changes or drops one without the inventory changing in the same PR, and when an entry is
+deleted while its object still exists. How to add one, what CI does and does not prove,
+and the read-only comparison with production are in
+[docs/data-model.md](docs/data-model.md) § SQL-only objects.
+
+The quote counter is one of them. `"SalesQuoteNumberSeq"` is the sequence Sales takes
+every new quote number from (`MQ-00001`, ...; `nextval` in meavo-sales
+`src/lib/quote-number.ts`). meavo-db owns it since 0.112.0:
+[scripts/sales-quote-number-sequence.sql](scripts/sales-quote-number-sequence.sql)
+creates it where it is missing and never touches one that exists. Never reset or restart
+it; `Deal.quoteNumber` is unique.
 
 ## Documentation
 
