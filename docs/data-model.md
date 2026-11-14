@@ -114,10 +114,78 @@ There is **no Prisma migrations directory**. Follow [RELEASE_POLICY.md](../RELEA
 2. `npm run diff` — **read the generated SQL**. Anything with `DROP` needs to be understood before going further; a stale or trimmed schema will drop other apps' tables.
 3. Additive changes: `npm run db:push`.
 4. Destructive or ordering-sensitive changes: write an **idempotent** script in `scripts/` (wrap `CREATE TYPE` etc. in `DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL`), with an `-- Apply:` header, and run `npx prisma db execute --file scripts/<file>.sql --schema prisma/schema.prisma`. See `scripts/add-task-tables.sql` for the pattern, and `scripts/add-booth-identity-links.sql` for guarded foreign keys (`IF NOT EXISTS (SELECT 1 FROM pg_constraint ...)`) and NULL-only backfills.
-   CI runs `scripts/verify-sql-replay.sh`: the diff from the base branch must be additive, apart from whole statements in its `REVIEWED` list (each one names the script that performs it and why it cannot lose data), and the scripts listed in it, each applied twice to a database built from the base schema, must produce `prisma/schema.prisma` exactly. Add a new script to that list in the same PR.
+   CI runs `scripts/verify-sql-replay.sh`: the diff from the base branch must be additive, apart from whole statements in its `REVIEWED` list (each one names the script that performs it and why it cannot lose data), and the scripts listed in it, each applied twice to a database built from the base schema, must produce `prisma/schema.prisma` exactly. Add a new script to that list in the same PR. The same run checks what Prisma cannot see against the inventory (next section).
 5. Commit the version/schema changes on `feat/*` and open a PR against `staging`. The release yes (staging → `main`) covers `main` promotion, the release tag and production application (`scripts/apply-sql.sh production`). After the approved package release, prepare dependency bumps through each consumer’s feature-to-staging workflow.
 
 Consumer apps must **never** run `db:push` themselves — their partial schemas would drop everyone else's tables.
+
+## SQL-only objects
+
+`prisma/schema.prisma` cannot declare everything the database holds. Prisma ignores
+CHECK constraints, partial and expression indexes, triggers, functions and standalone
+sequences, so `prisma migrate diff`, `npm run diff` and step 4 of the replay check stay
+silent when one of them is missing or wrong.
+[prisma/sql-only-objects.json](../prisma/sql-only-objects.json) is their inventory: one
+line per object with its kind, table, name and the definition PostgreSQL prints
+(`pg_get_constraintdef`, `pg_get_indexdef`, `pg_get_triggerdef`, `pg_get_functiondef`;
+for a sequence its type, range and owning column). At 0.112.0 it lists 98 objects:
+76 CHECK constraints, 7 partial unique indexes, 1 expression unique index, 8 triggers
+with their 4 functions, and 2 sequences (`BacklogItem_number_seq`, owned by
+`BacklogItem.number`, and the standalone `SalesQuoteNumberSeq`). It was written from
+production on 14 November 2026 with `scripts/sql-only-objects.mjs`.
+
+**Adding, changing or dropping one.** Write it in an idempotent script with an explicit
+name (`ADD CONSTRAINT "Table_rule_check" CHECK (...)` in a `DO` block, `CREATE UNIQUE
+INDEX IF NOT EXISTS "Table_rule_key" ... WHERE ...`), list the script in `REPLAY`, and
+change the inventory in the same PR: add, replace or delete the object's line. The
+failing CI step prints the line to add; `node scripts/sql-only-objects.mjs format` puts
+the file back in order. With a disposable local database,
+`node scripts/sql-only-objects.mjs dump` prints the whole inventory of `DATABASE_URL`.
+
+**What CI proves** (`scripts/verify-sql-replay.sh` steps 5 and 6, on the throwaway
+PostgreSQL service; it runs PostgreSQL 17 like production, because definitions are
+compared as the server prints them):
+
+- Step 5. Every SQL-only object the `REPLAY` scripts create on a database built from the
+  schema is in the inventory with the same definition. That is 57 of the 98. The other
+  41 are unnamed CHECK constraints written inside `CREATE TABLE IF NOT EXISTS` in five
+  older Sales scripts (`sales-month-end-forecast.sql`, `sales-forecast-manual-runs.sql`,
+  `sales-opportunity-forecast.sql`, `sales-payment-history.sql`, `sales-marketing.sql`).
+  The check builds its database from the Prisma schema, so those tables already exist
+  and the scripts skip them; the full set of scripts cannot run from an empty database
+  either, because the oldest tables were created with `db push`, not by a script. For
+  these 41 the step reads the scripts instead of running them and requires a file in
+  `scripts/` that defines each one.
+- Step 6. The database is rebuilt as it was before the change: the base branch's schema
+  plus every object the base branch's inventory records, created from the recorded
+  definitions. Every `REPLAY` script then runs once more and the SQL-only objects must
+  equal the inventory exactly. A script that drops or alters any of the 98, a new object
+  without an inventory line, an inventory line that no replayed script creates, and an
+  inventory line deleted without a script that drops the object all fail here.
+- A script that is new since the base branch must be listed in `REPLAY` (or in
+  `NOT_REPLAYED`, with the reason), so a new script cannot stay outside these checks.
+
+**What CI cannot prove.** It has no access to production or staging. That the 41 older
+checks exist there exactly as recorded, and that nobody created or dropped an object by
+hand or from an app, is shown only by the comparison below. Not covered at all: unique
+constraints that Prisma models as unique indexes, enum value order, column defaults and
+anything outside the `public` schema.
+
+**Comparing with production (read-only).** From a meavo-db checkout in the workspace,
+with the workspace's guarded helper (one `SELECT` in a read-only transaction; it never
+prints the connection string):
+
+```bash
+node <workspace>/_shared/tools/prod-read.mjs "$(node scripts/sql-only-objects.mjs sql)" > <output folder>/production-rows.json
+node scripts/sql-only-objects.mjs compare --rows <output folder>/production-rows.json
+```
+
+`compare` lists the objects production has that the inventory lacks, the inventory
+entries production lacks and the definitions that differ, and exits 1 if there are any.
+Run it before a release that touches SQL-only objects and again after its production
+SQL. For staging, `DATABASE_URL=<staging> node scripts/sql-only-objects.mjs compare`
+does the same in a read-only transaction. On 14 November 2026 production held exactly
+the 98 objects of the inventory.
 
 ## Sales deal collections and labels
 
@@ -485,7 +553,9 @@ production):
   is declared.
 
 What the schema still cannot express stays in SQL only and is left as production
-has it: 73 CHECK constraints, 7 partial or expression unique indexes, 6 unique
+has it (since 0.112.0 the checks, indexes, triggers, functions and sequences among it
+are listed in [prisma/sql-only-objects.json](../prisma/sql-only-objects.json), see
+§ SQL-only objects): 73 CHECK constraints, 7 partial or expression unique indexes, 6 unique
 constraints that Prisma models as unique indexes, `NOT NULL` on five scalar-list
 columns, and the value order of three enums (`FeatureRequestType`,
 `InventoryAllocationKind`, `PaymentTerms`), which is not changed because it sets
@@ -682,3 +752,22 @@ Rollback is `DROP COLUMN` of both; existing rows lose only the visit override.
 ## Sales revenue targets (0.111.0)
 
 `SalesRevenueTarget` holds one EUR (excl. VAT) revenue target per `year`, `month` (1–12) and Sales `market`, unique on that triple. The Sales Ops Report (`/numbers/ops-report`) sums the rows for the selected markets and compares won revenue against them; Sales admins edit them in Sales settings. A missing row means no target. `market` is the label stored on `Deal.market`, with no foreign key, and `updatedById` is scalar attribution that survives account deletion. Apply the additive `scripts/sales-revenue-targets.sql` (table, unique index, and SQL-only CHECKs on `month` and `amountEur`) before the Sales release; rollback leaves the unused table in place.
+
+## Sales quote numbers (0.112.0)
+
+Sales numbers its quotes from the Postgres sequence `"SalesQuoteNumberSeq"`. Every new
+quote takes `nextval('"SalesQuoteNumberSeq"')` (meavo-sales `src/lib/quote-number.ts`)
+and stores it as `Deal.quoteNumber`: `MQ-00001`, `MQ-00002`, ... A variation adds a
+letter (`MQ-00123A`) and takes no number. It is the only standalone sequence in the
+database (bigint, from 1 by 1, no cycle) and Prisma cannot declare it. Until 0.112.0
+only the Sales repository created it (`prisma/seed.ts` and the old
+`prisma/sql/sales_tool.sql`); meavo-db owns it now, and Sales keeps using it through
+`nextval` only.
+
+`scripts/sales-quote-number-sequence.sql` does nothing where the sequence exists, which
+is the case in production and staging: no `setval`, no `RESTART`, no `ALTER SEQUENCE`.
+Where it is missing, the script creates it and, only then, moves the new sequence past
+the highest `MQ-` number already in `Deal`, so a recreated sequence cannot repeat a
+quote number (`Deal.quoteNumber` is unique). Applying it to production changes nothing
+and there is nothing to roll back. Never reset or restart the sequence, in a script or
+by hand. It is listed in the SQL-only inventory, so CI fails if a script drops it.
