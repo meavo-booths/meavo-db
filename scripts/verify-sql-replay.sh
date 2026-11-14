@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Prove that a schema change is additive and that the idempotent scripts produce it.
+# Prove that a schema change is additive, that the idempotent scripts produce it, and that
+# no SQL-only object is added, changed, dropped or forgotten along the way.
 #
 #   DATABASE_URL=postgresql://user:pass@127.0.0.1:5432/db scripts/verify-sql-replay.sh <base git ref>
 #
@@ -9,15 +10,38 @@
 #      prisma/schema.prisma must contain no DROP, RENAME, SET NOT NULL or type change,
 #      except the whole statements listed in REVIEWED below.
 #   2. Builds the database from the base ref's schema.
-#   3. Applies every script in REPLAY below, in order, twice.
+#   3. Applies every script in REPLAY below, in order, twice. A script that is new since
+#      the base ref must be listed in REPLAY (or in NOT_REPLAYED, with the reason).
 #   4. `prisma migrate diff` from that database to prisma/schema.prisma must be empty,
-#      so the scripts create exactly what the schema declares (Prisma ignores the
-#      SQL-only checks and partial or expression indexes the scripts also create).
-# A new script that ships a schema change is appended to REPLAY in the same PR.
+#      so the scripts create exactly what the schema declares. Prisma ignores the SQL-only
+#      objects the scripts also create (CHECK constraints, partial and expression indexes,
+#      triggers, functions, sequences); steps 5 and 6 check those against the inventory
+#      prisma/sql-only-objects.json (scripts/sql-only-objects.mjs).
+#   5. Every SQL-only object the replayed scripts created must be in the inventory with
+#      the same definition, and every other inventory entry must be defined by some file
+#      in scripts/ (older scripts that only create it together with its table cannot be
+#      replayed on a database that already has the table; they are read, not run).
+#   6. Rebuilds the database as it was before the change: the base ref's schema plus the
+#      SQL-only objects the base ref's inventory records. Applies every REPLAY script once
+#      more; the result must again equal prisma/schema.prisma, and its SQL-only objects
+#      must equal the inventory exactly. So no script can add, change or drop one, and
+#      no entry can be deleted, unless the inventory changes in the same PR.
+# A new script is appended to REPLAY in the same PR; a new SQL-only object is added to
+# the inventory in the same PR (the failing step prints the line to add).
 set -euo pipefail
 
 # Scripts known to be replayable on a database built from the schema, in apply order.
+# The first seven are older than the list itself; they were added on 14 November 2026
+# because they create SQL-only objects (checks, triggers and their functions, a partial
+# index) and replay cleanly.
 REPLAY=(
+  scripts/client-profile-activity.sql
+  scripts/deal-collected-and-labels.sql
+  scripts/sales-priority-settings.sql
+  scripts/add-sales-deal-id-rename.sql
+  scripts/sales-label-campaigns.sql
+  scripts/client-merge.sql
+  scripts/questionnaire-submission-lat-member.sql
   scripts/add-inventory-v1.sql
   scripts/add-inventory-unit-cost.sql
   scripts/add-inventory-v2-allocation-rules.sql
@@ -41,6 +65,12 @@ REPLAY=(
   scripts/add-factory-panel-order-cancel-reason.sql
   scripts/add-dev-backlog-tables.sql
   scripts/sales-revenue-targets.sql
+  scripts/sales-quote-number-sequence.sql
+)
+
+# New scripts that cannot be replayed on a database built from the schema, each with the
+# reason. Steps 5 and 6 do not see what these create, so prefer REPLAY.
+NOT_REPLAYED=(
 )
 
 # Non-additive statements reviewed as unable to lose data, each exactly as
@@ -77,6 +107,7 @@ case "$DATABASE_URL" in
 esac
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+inventory=prisma/sql-only-objects.json
 prisma="$root/node_modules/.bin/prisma"
 [ -x "$prisma" ] || fail "prisma CLI missing: run npm ci in $root"
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
@@ -103,23 +134,56 @@ echo "---- 2. database from the $base schema"
 "$prisma" migrate diff --from-empty --to-schema-datamodel "$work/base.prisma" --script > "$work/baseline.sql"
 "$prisma" db execute --url "$DATABASE_URL" --file "$work/baseline.sql"
 
-echo "---- 3. replay each script twice"
-for sql in "${REPLAY[@]}"; do
-  for run in 1 2; do
-    "$prisma" db execute --url "$DATABASE_URL" --file "$sql" > /dev/null || fail "$sql (run $run)"
+# Applies every REPLAY script, in order, $1 times.
+replay() {
+  local sql run
+  for sql in "${REPLAY[@]}"; do
+    for run in $(seq 1 "$1"); do
+      "$prisma" db execute --url "$DATABASE_URL" --file "$sql" > /dev/null || fail "$sql (run $run)"
+    done
+    echo "OK   $sql x$1"
   done
-  echo "OK   $sql x2"
-done
+}
+
+# The database must equal prisma/schema.prisma as far as Prisma can see.
+schema_diff() {
+  local status
+  set +e
+  "$prisma" migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma \
+    --script --exit-code > "$work/remaining.sql"
+  status=$?
+  set -e
+  if [ "$status" -eq 2 ]; then
+    cat "$work/remaining.sql"
+    fail "the replayed scripts do not produce prisma/schema.prisma (statements above); add or fix a script and list it in REPLAY"
+  fi
+  [ "$status" -eq 0 ] || fail "prisma migrate diff exited with $status"
+  echo "OK   no difference"
+}
+
+echo "---- 3. replay each script twice"
+git ls-tree -r --name-only "$base" -- scripts > "$work/base-scripts.txt"
+printf '%s\n' "${REPLAY[@]}" ${NOT_REPLAYED[@]+"${NOT_REPLAYED[@]}"} > "$work/listed.txt"
+unlisted=$(ls scripts/*.sql | grep -vxF -f "$work/base-scripts.txt" | grep -vxF -f "$work/listed.txt" || true)
+[ -z "$unlisted" ] || fail "new since $base but in neither REPLAY nor NOT_REPLAYED: $(echo $unlisted)"
+replay 2
 
 echo "---- 4. replayed database vs prisma/schema.prisma"
-set +e
-"$prisma" migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma \
-  --script --exit-code > "$work/remaining.sql"
-status=$?
-set -e
-if [ "$status" -eq 2 ]; then
-  cat "$work/remaining.sql"
-  fail "the replayed scripts do not produce prisma/schema.prisma (statements above); add or fix a script and list it in REPLAY"
+schema_diff
+
+echo "---- 5. SQL-only objects the replayed scripts created vs $inventory"
+node scripts/sql-only-objects.mjs coverage
+
+echo "---- 6. $base schema and SQL-only objects, every script once more, vs schema and inventory"
+printf 'DROP SCHEMA public CASCADE;\nCREATE SCHEMA public;\n' | "$prisma" db execute --url "$DATABASE_URL" --stdin > /dev/null
+"$prisma" db execute --url "$DATABASE_URL" --file "$work/baseline.sql" > /dev/null
+if git show "$base:$inventory" > "$work/base-inventory.json" 2>/dev/null; then
+  echo "     SQL-only objects as $base records them"
+else
+  cp "$inventory" "$work/base-inventory.json"
+  echo "NOTE $base has no $inventory (the change that introduces it): using the working tree's"
 fi
-[ "$status" -eq 0 ] || fail "prisma migrate diff exited with $status"
-echo "OK   no difference"
+node scripts/sql-only-objects.mjs seed --inventory "$work/base-inventory.json"
+replay 1
+schema_diff
+node scripts/sql-only-objects.mjs compare
