@@ -11,8 +11,11 @@
 # prints the connection string. DATABASE_URL may also come from the environment.
 set -euo pipefail
 
-STAGING_HOST=ep-restless-water-apcjwaj4   # Neon branch "staging"
-PRODUCTION_HOST=ep-tiny-haze-apqsaah5     # Neon branch "main" = production
+# Neon project "meavo-frankfurt" (aws-eu-central-1), where the database moved on 2026-11-15.
+# Endpoint ids; the direct host is <id>.c-8.eu-central-1.aws.neon.tech, the pooled host
+# <id>-pooler.c-8.eu-central-1.aws.neon.tech. Both start with the id, so both match.
+STAGING_HOST=ep-ancient-star-banlek9s     # Neon branch "staging"
+PRODUCTION_HOST=ep-proud-frog-banzi4wg    # Neon branch "main" = production
 
 fail() { echo "ABORT: $*" >&2; exit 1; }
 
