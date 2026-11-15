@@ -143,7 +143,7 @@ the file back in order. With a disposable local database,
 `node scripts/sql-only-objects.mjs dump` prints the whole inventory of `DATABASE_URL`.
 
 **What CI proves** (`scripts/verify-sql-replay.sh` steps 5 and 6, on the throwaway
-PostgreSQL service; it runs PostgreSQL 17 like production, because definitions are
+PostgreSQL service; it runs PostgreSQL 18 like production, because definitions are
 compared as the server prints them):
 
 - Step 5. Every SQL-only object the `REPLAY` scripts create on a database built from the
