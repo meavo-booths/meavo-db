@@ -18,10 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     services:
       # Throwaway database for the SQL replay below; never a shared environment.
-      # Same major version as production (17): the SQL-only definitions in
-      # prisma/sql-only-objects.json are compared as the server prints them.
+      # Same major version as production (18, Neon project meavo-frankfurt since
+      # 2026-11-15): the SQL-only definitions in prisma/sql-only-objects.json are
+      # compared as the server prints them.
       postgres:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_USER: meavo
           POSTGRES_PASSWORD: meavo-ci-only
