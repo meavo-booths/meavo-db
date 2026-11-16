@@ -5,6 +5,7 @@
 - Agents may also write to verified staging resources (staging DB scripts and data, staging deployments), re-pin dependencies to approved tags through `staging`, open release PRs, and run read-only production queries through the guarded helper.
 - To release, list every release PR in the bundle with its scope and production steps (release tag, production SQL) in one message and wait for one human yes. That yes covers the bundle, including re-pins to the approved tag; ask again only if `staging` gains unrelated changes. Merge releases with a merge commit.
 - Never push directly to `main`/`staging`, bypass protections, or change production outside an approved release. From staging, never touch records in an external system shared with production.
+- Database connection settings are human-gated in every environment: never add, change, delete, rotate, connect or disconnect a `DATABASE_URL`-family variable, a Vercel Storage database resource, or a Neon role or project without an explicit yes from Boyan, Kalin or Todor, and never to obtain a hidden value. The shared database is Neon `meavo-frankfurt`; any `us-east-1` address is retired.
 - Read [RELEASE_POLICY.md](RELEASE_POLICY.md) before release, deployment, environment, schema, or tag work. Verify actual environment destinations before writes.
 <!-- END MEAVO RELEASE POLICY -->
 
