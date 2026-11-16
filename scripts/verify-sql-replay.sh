@@ -66,6 +66,7 @@ REPLAY=(
   scripts/add-dev-backlog-tables.sql
   scripts/sales-revenue-targets.sql
   scripts/sales-quote-number-sequence.sql
+  scripts/sales-zamp-invoice-reporting.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
