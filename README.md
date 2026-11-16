@@ -148,3 +148,5 @@ it; `Deal.quoteNumber` is unique.
 Sales owns `SalesForecastManualRun`; it retains manual historical forecasts and per-run cost history alongside daily `SalesForecastRun` snapshots. Apply `scripts/sales-forecast-manual-runs.sql` before the consumer release.
 
 Sales Marketing form reporting uses the additive `scripts/sales-marketing.sql` migration. It stores form metadata, submission identifiers/timestamps and resumable sync state, without contact fields. Apply to isolated staging before the Sales consumer; production migration and package publication go out with the approved release.
+
+Sales invoice tax reporting: `ZampInvoiceReport` stores each Xero invoice snapshot and its Zamp delivery state. `Deal.zampInvoiceReportingAt` explicitly enrolls a deal; the additive migration does not enroll historical deals.

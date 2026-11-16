@@ -1588,6 +1588,10 @@ model Deal {
   zampTransactionId String?        @unique
   zampSyncedAt      DateTime?
   zampSyncError     String?
+  /// Opt-in to invoice reporting. Null preserves legacy transactions for reviewed migration.
+  zampInvoiceReportingAt DateTime?
+  zampInvoiceCheckedAt DateTime?
+  zampInvoiceReports ZampInvoiceReport[]
 
   // HubSpot CRM link (owner: sales) — set when a rep links the quote to a
   // HubSpot deal. Not unique: quote variations can share one HubSpot deal.
@@ -1633,6 +1637,26 @@ model Deal {
   @@index([canonicalQuoteId])
   @@index([deletedAt])
   @@index([hubspotDealId])
+}
+
+/// Sales-owned durable invoice snapshots and Zamp delivery state. Never stores quote estimates.
+model ZampInvoiceReport {
+  id String @id @default(cuid())
+  dealId String
+  xeroInvoiceId String @unique
+  invoiceNumber String
+  transactionId String @unique
+  /// DRAFT | PENDING | SYNCED | REMOVED | REVIEW. PENDING is saved before remote writes.
+  status String @default("DRAFT")
+  payload Json
+  syncedAt DateTime?
+  removedAt DateTime?
+  syncError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Restrict)
+
+  @@index([dealId])
 }
 
 /// Field-level change history for Deal rows (sales app). Written automatically
