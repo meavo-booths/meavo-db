@@ -31,7 +31,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Partner stock | stock | `StockPartner`, `StockPartnerVisit` (stock quantities stay in the Ops Google Sheet) |
 | Physical booth inventory | inventory | `BoothFamily` and `ProductionBatch` (shared masters, see below), `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
 | Zeron material checker | zeron-material-checker | `ZeronSheetState`, `ZeronImportRun`, `ZeronImportedTab`, `ZeronDeliveryRow`, `ZeronAcceptedUnitCost` (the app keeps its own local schema and never pushes it; MRP reads `ZeronDeliveryRow` with raw SQL) |
-| Dev backlog | dev | `BacklogFamily`, `BacklogApp`, `BacklogItem`, `BacklogItemRelation`, `BacklogLink`, `BacklogComment`, `BacklogAttachment`, `BacklogSubscriber`, `BacklogActivity`, `BacklogOverviewPreference` (engineering backlog at dev.meavo.app) |
+| Dev backlog | dev | `BacklogFamily`, `BacklogApp`, `BacklogItem`, `BacklogItemRelation`, `BacklogLink`, `BacklogComment`, `BacklogAttachment`, `BacklogSubscriber`, `BacklogActivity`, `BacklogOverviewPreference`, `BacklogItemOwner` (engineering backlog at dev.meavo.app) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 
@@ -697,6 +697,18 @@ show on the board. Comments are threaded, can be resolved and can be marked as
 decisions; attachments, subscribers and the activity history cascade with their
 item. Apply `scripts/add-dev-backlog-tables.sql` (new enums and tables only;
 older clients ignore them).
+
+## Dev backlog owners (0.114.0)
+
+`BacklogApp.ownerId` is an app's default owner: dev.meavo.app gives every new item
+in that app this owner, and the person who added it as well when that is someone
+else. `BacklogItemOwner` holds every owner of an item, one row per person, each
+with its own `focusRank` so the same item sits at its own place on each owner's
+priority list. `BacklogItem.ownerId` and `focusRank` stay and hold the primary
+owner, so clients pinned before 0.114.0 keep reading a single owner. Apply
+`scripts/add-dev-owners.sql`: one nullable column, one new table, and a backfill
+that copies each existing `BacklogItem.ownerId` (with its `focusRank`) into
+`BacklogItemOwner`. Additive and safe for older clients.
 
 ## Assembly "Delivery Only" event type
 

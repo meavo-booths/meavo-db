@@ -67,6 +67,7 @@ REPLAY=(
   scripts/sales-revenue-targets.sql
   scripts/sales-quote-number-sequence.sql
   scripts/sales-zamp-invoice-reporting.sql
+  scripts/add-dev-owners.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
