@@ -1108,13 +1108,22 @@ enum LostReason {
   SUPERSEDED_BY_VARIATION
 }
 
+/// One list for every app: seven standard finishes normally kept in stock
+/// (WHITE_STOCK, BLACK_STOCK, OAK, SAND_YELLOW, INDIGO_BLUE, ANTIQUE_ROSE, STONE_GREEN)
+/// plus CUSTOM, which is built to order with the exact colour in finishDetails.
 enum ProductFinish {
   CUSTOM
   WHITE_STOCK
   BLACK_STOCK
+  /// Legacy "Laminated Colour": kept for old rows, no longer offered (0.115.0).
   LDF_COLOUR
   /// Finish not decided yet — quotes only; a TBC line blocks conversion to a won deal.
   TBC
+  OAK
+  SAND_YELLOW
+  INDIGO_BLUE
+  ANTIQUE_ROSE
+  STONE_GREEN
 }
 
 enum LineItemDiscountType {
@@ -5614,6 +5623,7 @@ model InventoryFactory {
   site         FactorySite?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
   batches      InventoryBatch[]
   units        InventoryUnit[]
+  briefedLines InventoryDemandLine[]
 
   @@unique([sourceSystem, sourceId])
   @@index([siteId])
@@ -5830,12 +5840,21 @@ model InventoryDemandLine {
   metadata        Json?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
+  /// Custom backlog: set by Ops/Product when a made-to-order line is briefed to a
+  /// factory, never overwritten by sync. Null briefedAt = not briefed yet.
+  briefedAt       DateTime?
+  briefedById     String?
+  briefFactoryId  String?
+  briefBatchCode  String?
+  briefNote       String?
   demand          InventoryDemand     @relation(fields: [demandId], references: [id], onDelete: Restrict)
   finish          InventoryFinish?    @relation(fields: [finishId], references: [id], onDelete: Restrict)
+  briefFactory    InventoryFactory?   @relation(fields: [briefFactoryId], references: [id], onDelete: Restrict)
   allocations     InventoryAllocation[]
 
   @@unique([demandId, sourceLineId])
   @@index([finishId])
+  @@index([briefFactoryId])
 }
 
 /// Advisory snapshot only. items carries lineId, slot, unitId, unitVersion,
