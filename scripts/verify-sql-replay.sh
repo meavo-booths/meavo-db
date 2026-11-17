@@ -68,6 +68,9 @@ REPLAY=(
   scripts/sales-quote-number-sequence.sql
   scripts/sales-zamp-invoice-reporting.sql
   scripts/add-dev-owners.sql
+  scripts/add-standard-finishes.sql
+  scripts/seed-standard-finishes.sql
+  scripts/convert-laminated-colour-finishes.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the

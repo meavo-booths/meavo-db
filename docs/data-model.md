@@ -710,6 +710,37 @@ owner, so clients pinned before 0.114.0 keep reading a single owner. Apply
 that copies each existing `BacklogItem.ownerId` (with its `focusRank`) into
 `BacklogItemOwner`. Additive and safe for older clients.
 
+## Standard finishes and the Custom backlog (0.115.0)
+
+`ProductFinish` is the one finish list for every app: seven standard finishes that
+are normally kept in stock (`WHITE_STOCK`, `BLACK_STOCK`, `OAK`, `SAND_YELLOW`,
+`INDIGO_BLUE`, `ANTIQUE_ROSE`, `STONE_GREEN`) plus `CUSTOM`, which is built to
+order with the exact colour (RAL, Pantone, ...) in `finishDetails`. `TBC` stays
+for undecided quote lines. `LDF_COLOUR` ("Laminated Colour") stays for old rows
+and is no longer offered. "Light oak" and "dark oak" are older colours that are
+no longer made; old rows keep them as detail text.
+
+Inventory holds each standard finish as a reviewed `InventoryFinish` and knows
+its Sales name through an `InventoryCatalogMapping` row (`sales` / `finish` /
+the enum value), so a standard Sales line is matched to stock by its finish
+alone. `InventoryDemandLine` gains the brief fields of Inventory's Custom
+backlog (`briefedAt`, `briefedById`, `briefFactoryId`, `briefBatchCode`,
+`briefNote`): a won deal's Custom line is listed there until it is briefed to a
+factory and a booth is linked to it. Sync never writes these columns.
+
+Three scripts, in this order:
+
+1. `scripts/add-standard-finishes.sql`: the five enum values and the brief
+   columns. Additive, but **an older Prisma client fails when it reads a row
+   carrying an enum value it does not know**. Sales, Inventory and Assembly read
+   `QuoteLineItem` or `BoothUnit`, so all three must be released on 0.115.0 or
+   later before any row uses a new value.
+2. `scripts/seed-standard-finishes.sql`: the seven Inventory finishes and their
+   Sales names. Inventory tables only; safe at any time after step 1.
+3. `scripts/convert-laminated-colour-finishes.sql`: moves the old
+   `LDF_COLOUR` rows that name a standard finish (natural oak, sand yellow,
+   indigo blue) to that finish. Run it last, after the three apps are released.
+
 ## Assembly "Delivery Only" event type
 
 `AssemblyEventType` gains `DELIVERY_ONLY` for visits where MEAVO only delivers the
