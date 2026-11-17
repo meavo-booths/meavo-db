@@ -31,7 +31,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Partner stock | stock | `StockPartner`, `StockPartnerVisit` (stock quantities stay in the Ops Google Sheet) |
 | Physical booth inventory | inventory | `BoothFamily` and `ProductionBatch` (shared masters, see below), `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
 | Zeron material checker | zeron-material-checker | `ZeronSheetState`, `ZeronImportRun`, `ZeronImportedTab`, `ZeronDeliveryRow`, `ZeronAcceptedUnitCost` (the app keeps its own local schema and never pushes it; MRP reads `ZeronDeliveryRow` with raw SQL) |
-| Dev backlog | dev | `BacklogFamily`, `BacklogApp`, `BacklogItem`, `BacklogItemRelation`, `BacklogLink`, `BacklogComment`, `BacklogAttachment`, `BacklogSubscriber`, `BacklogActivity`, `BacklogOverviewPreference` (engineering backlog at dev.meavo.app) |
+| Dev backlog | dev | `BacklogFamily`, `BacklogApp`, `BacklogItem`, `BacklogItemRelation`, `BacklogLink`, `BacklogComment`, `BacklogAttachment`, `BacklogSubscriber`, `BacklogActivity`, `BacklogOverviewPreference`, `BacklogItemOwner` (engineering backlog at dev.meavo.app) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 
@@ -697,6 +697,49 @@ show on the board. Comments are threaded, can be resolved and can be marked as
 decisions; attachments, subscribers and the activity history cascade with their
 item. Apply `scripts/add-dev-backlog-tables.sql` (new enums and tables only;
 older clients ignore them).
+
+## Dev backlog owners (0.114.0)
+
+`BacklogApp.ownerId` is an app's default owner: dev.meavo.app gives every new item
+in that app this owner, and the person who added it as well when that is someone
+else. `BacklogItemOwner` holds every owner of an item, one row per person, each
+with its own `focusRank` so the same item sits at its own place on each owner's
+priority list. `BacklogItem.ownerId` and `focusRank` stay and hold the primary
+owner, so clients pinned before 0.114.0 keep reading a single owner. Apply
+`scripts/add-dev-owners.sql`: one nullable column, one new table, and a backfill
+that copies each existing `BacklogItem.ownerId` (with its `focusRank`) into
+`BacklogItemOwner`. Additive and safe for older clients.
+
+## Standard finishes and the Custom backlog (0.115.0)
+
+`ProductFinish` is the one finish list for every app: seven standard finishes that
+are normally kept in stock (`WHITE_STOCK`, `BLACK_STOCK`, `OAK`, `SAND_YELLOW`,
+`INDIGO_BLUE`, `ANTIQUE_ROSE`, `STONE_GREEN`) plus `CUSTOM`, which is built to
+order with the exact colour (RAL, Pantone, ...) in `finishDetails`. `TBC` stays
+for undecided quote lines. `LDF_COLOUR` ("Laminated Colour") stays for old rows
+and is no longer offered. "Light oak" and "dark oak" are older colours that are
+no longer made; old rows keep them as detail text.
+
+Inventory holds each standard finish as a reviewed `InventoryFinish` and knows
+its Sales name through an `InventoryCatalogMapping` row (`sales` / `finish` /
+the enum value), so a standard Sales line is matched to stock by its finish
+alone. `InventoryDemandLine` gains the brief fields of Inventory's Custom
+backlog (`briefedAt`, `briefedById`, `briefFactoryId`, `briefBatchCode`,
+`briefNote`): a won deal's Custom line is listed there until it is briefed to a
+factory and a booth is linked to it. Sync never writes these columns.
+
+Three scripts, in this order:
+
+1. `scripts/add-standard-finishes.sql`: the five enum values and the brief
+   columns. Additive, but **an older Prisma client fails when it reads a row
+   carrying an enum value it does not know**. Sales, Inventory and Assembly read
+   `QuoteLineItem` or `BoothUnit`, so all three must be released on 0.115.0 or
+   later before any row uses a new value.
+2. `scripts/seed-standard-finishes.sql`: the seven Inventory finishes and their
+   Sales names. Inventory tables only; safe at any time after step 1.
+3. `scripts/convert-laminated-colour-finishes.sql`: moves the old
+   `LDF_COLOUR` rows that name a standard finish (natural oak, sand yellow,
+   indigo blue) to that finish. Run it last, after the three apps are released.
 
 ## Assembly "Delivery Only" event type
 

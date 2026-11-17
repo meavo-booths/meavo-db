@@ -132,6 +132,8 @@ model User {
   backlogSubscriptions       BacklogSubscriber[] @relation("BacklogSubscriber")
   backlogActivity            BacklogActivity[]   @relation("BacklogActivityActor")
   backlogOverviewPreferences BacklogOverviewPreference[] @relation("BacklogOverviewPreference")
+  backlogAppsOwned           BacklogApp[]        @relation("BacklogAppOwner")
+  backlogItemOwnerships      BacklogItemOwner[]  @relation("BacklogItemOwners")
 }
 
 model Account {
@@ -1106,13 +1108,22 @@ enum LostReason {
   SUPERSEDED_BY_VARIATION
 }
 
+/// One list for every app: seven standard finishes normally kept in stock
+/// (WHITE_STOCK, BLACK_STOCK, OAK, SAND_YELLOW, INDIGO_BLUE, ANTIQUE_ROSE, STONE_GREEN)
+/// plus CUSTOM, which is built to order with the exact colour in finishDetails.
 enum ProductFinish {
   CUSTOM
   WHITE_STOCK
   BLACK_STOCK
+  /// Legacy "Laminated Colour": kept for old rows, no longer offered (0.115.0).
   LDF_COLOUR
   /// Finish not decided yet — quotes only; a TBC line blocks conversion to a won deal.
   TBC
+  OAK
+  SAND_YELLOW
+  INDIGO_BLUE
+  ANTIQUE_ROSE
+  STONE_GREEN
 }
 
 enum LineItemDiscountType {
@@ -5612,6 +5623,7 @@ model InventoryFactory {
   site         FactorySite?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
   batches      InventoryBatch[]
   units        InventoryUnit[]
+  briefedLines InventoryDemandLine[]
 
   @@unique([sourceSystem, sourceId])
   @@index([siteId])
@@ -5828,12 +5840,21 @@ model InventoryDemandLine {
   metadata        Json?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
+  /// Custom backlog: set by Ops/Product when a made-to-order line is briefed to a
+  /// factory, never overwritten by sync. Null briefedAt = not briefed yet.
+  briefedAt       DateTime?
+  briefedById     String?
+  briefFactoryId  String?
+  briefBatchCode  String?
+  briefNote       String?
   demand          InventoryDemand     @relation(fields: [demandId], references: [id], onDelete: Restrict)
   finish          InventoryFinish?    @relation(fields: [finishId], references: [id], onDelete: Restrict)
+  briefFactory    InventoryFactory?   @relation(fields: [briefFactoryId], references: [id], onDelete: Restrict)
   allocations     InventoryAllocation[]
 
   @@unique([demandId, sourceLineId])
   @@index([finishId])
+  @@index([briefFactoryId])
 }
 
 /// Advisory snapshot only. items carries lineId, slot, unitId, unitVersion,
@@ -6257,15 +6278,19 @@ model BacklogApp {
   repoFullName String?
   url          String?
   sortOrder    Int       @default(0)
+  /// Default owner: new items in this app get this user as an owner.
+  ownerId      String?
   archivedAt   DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   family BacklogFamily @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  owner  User?         @relation("BacklogAppOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   items  BacklogItem[]
   overviewPreferences BacklogOverviewPreference[]
 
   @@index([familyId, sortOrder])
+  @@index([ownerId])
 }
 
 model BacklogItem {
@@ -6308,6 +6333,7 @@ model BacklogItem {
   createdBy         User                  @relation("BacklogItemCreator", fields: [createdById], references: [id], onDelete: Restrict)
   outgoingRelations BacklogItemRelation[] @relation("BacklogRelationFrom")
   incomingRelations BacklogItemRelation[] @relation("BacklogRelationTo")
+  owners            BacklogItemOwner[]
   links             BacklogLink[]
   comments          BacklogComment[]
   attachments       BacklogAttachment[]
@@ -6323,6 +6349,23 @@ model BacklogItem {
 }
 
 /// Directed: `from` BLOCKS / RELATES / DUPLICATE_OF `to`.
+/// Everyone who owns an item. An item can have several owners (the app owner and
+/// the person who added it); each owner orders it on their own priority list.
+/// BacklogItem.ownerId stays as the primary owner for older clients.
+model BacklogItemOwner {
+  itemId    String
+  userId    String
+  /// Order in this owner's priority list (fractional index); null while closed.
+  focusRank String?
+  createdAt DateTime @default(now())
+
+  item BacklogItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User        @relation("BacklogItemOwners", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, userId])
+  @@index([userId, focusRank])
+}
+
 model BacklogItemRelation {
   id        String              @id @default(cuid())
   fromId    String
