@@ -741,6 +741,23 @@ Three scripts, in this order:
    `LDF_COLOUR` rows that name a standard finish (natural oak, sand yellow,
    indigo blue) to that finish. Run it last, after the three apps are released.
 
+## Provisional factory colours and held colour deductions (0.116.0)
+
+A planning colour that is not in `FactoryColor` used to be dropped by the Factory
+sync, so its batch had no colour lines and no station tasks. Factory now creates
+it as a `FactoryColor` with `provisional = true` (and `provisionalSince`), so the
+batch is scheduled under its real name and the schedule warns until MRP has BOM
+colour lines for it. Factory clears the flag itself; the colour keeps its id, so
+no events or counters move.
+
+`MrpBatchUnitElement.colourDeductionPending` marks an element whose deduction was
+posted without its colour-specific BOM lines, because the unit's colour had none
+yet. MRP posts the missing lines as `bom_rework_adjustment` once that colour's
+lines exist, then clears the flag.
+
+Apply `scripts/add-provisional-colours.sql`: three columns with defaults, no
+backfill. Additive and safe for older clients.
+
 ## Assembly "Delivery Only" event type
 
 `AssemblyEventType` gains `DELIVERY_ONLY` for visits where MEAVO only delivers the
