@@ -69,6 +69,8 @@ model User {
   generatedDocumentsAsSubject  GeneratedDocument[]       @relation("GeneratedDocumentSubject")
   libraryAssetsUploaded      LibraryAsset[]
   salaryHistoryChanged       EmployeeSalaryHistory[]     @relation("SalaryHistoryChanger")
+  earningsRecorded HrEarning[] @relation("EarningRecorder")
+  earningsCancelled HrEarning[] @relation("EarningCanceller")
 
   mrpProfile                 MrpUserProfile?
   mrpDocumentsCreated        MrpDocument[]        @relation("MrpDocumentCreator")
@@ -163,6 +165,7 @@ model Team {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   members         TeamMember[]
+  earnings        HrEarning[]
   subgroups       TeamSubgroup[]
   taskWorkspaces  TaskWorkspace[]
 }
@@ -318,6 +321,8 @@ model Employee {
   documents     EmployeeDocument[]
   salaryHistory EmployeeSalaryHistory[]
   commissions   EmployeeCommission[]
+  earnings      HrEarning[]
+  earningAllocations HrEarningAllocation[]
 }
 
 model EmployeeSalaryHistory {
@@ -347,6 +352,61 @@ model EmployeeCommission {
 
   @@unique([employeeId, year])
   @@index([year])
+}
+
+/// Available commission stays in EmployeeCommission; only these recorded earnings are costs.
+enum HrEarningKind {
+  COMMISSION
+  TEAM_BONUS
+}
+
+/// Immutable award. Corrections cancel and replace it atomically, preserving its history.
+model HrEarning {
+  id                 String @id @default(cuid())
+  kind               HrEarningKind
+  employeeId         String?
+  teamId             String?
+  teamName           String @default("")
+  startMonth         DateTime @db.Date
+  endMonth           DateTime @db.Date
+  amount             Decimal @db.Decimal(12, 2)
+  note               String @default("") @db.Text
+  requestHash        String
+  createdById        String
+  createdAt          DateTime @default(now())
+  cancelledAt        DateTime?
+  cancelledById      String?
+  cancellationReason String @default("") @db.Text
+  replacesId         String? @unique
+
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  team        Team? @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  createdBy   User @relation("EarningRecorder", fields: [createdById], references: [id], onDelete: Restrict)
+  cancelledBy User? @relation("EarningCanceller", fields: [cancelledById], references: [id], onDelete: Restrict)
+  replaces    HrEarning? @relation("EarningCorrection", fields: [replacesId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  replacement HrEarning? @relation("EarningCorrection")
+  allocations HrEarningAllocation[]
+
+  @@index([employeeId, startMonth])
+  @@index([teamId, startMonth])
+  @@index([kind, startMonth])
+}
+
+/// Frozen per-person, per-month amounts; zero explicitly records no commission earned.
+model HrEarningAllocation {
+  id         String @id @default(cuid())
+  earningId  String
+  employeeId String
+  month      DateTime @db.Date
+  amount     Decimal @db.Decimal(12, 2)
+  company    Company
+
+  earning  HrEarning @relation(fields: [earningId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([earningId, employeeId, month])
+  @@index([employeeId, month])
+  @@index([month])
 }
 
 model EmployeeDocument {
