@@ -73,6 +73,7 @@ REPLAY=(
   scripts/convert-laminated-colour-finishes.sql
   scripts/add-provisional-colours.sql
   scripts/add-hr-earned-compensation.sql
+  scripts/add-document-template-settings.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
