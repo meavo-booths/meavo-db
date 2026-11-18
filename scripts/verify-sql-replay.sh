@@ -71,6 +71,7 @@ REPLAY=(
   scripts/add-standard-finishes.sql
   scripts/seed-standard-finishes.sql
   scripts/convert-laminated-colour-finishes.sql
+  scripts/add-provisional-colours.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
