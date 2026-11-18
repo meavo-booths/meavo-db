@@ -11,7 +11,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Schema section | Owner app | Representative models |
 |----------------|-----------|-----------------------|
 | Identity & access | gateway | `User`, `Account`, `Team`, `TeamSubgroup`, `TeamMember`, `GatewayUserImportReceipt`, `ToolCard`, `ToolCardAccess`, `LoginThrottle` |
-| HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `EmployeeCommission`, `DocumentTemplate*`, `GeneratedDocument`, `SignatureRequest`, `LibraryAsset`, `LibraryVideo`, `UsefulLink`, `GatewaySheetRecord` |
+| HR & documents | gateway | `Employee`, `EmployeeSalaryHistory`, `EmployeeCommission`, `HrEarning`, `HrEarningAllocation`, `DocumentTemplate*`, `GeneratedDocument`, `SignatureRequest`, `LibraryAsset`, `LibraryVideo`, `UsefulLink`, `GatewaySheetRecord` |
 | Vacation tracking | hols | `VacationRequest`, `UserAllowance`, `PublicHoliday` |
 | Assembly | assembly | `Assembly`, `AssemblyPartner` (incl. `phone`), `Questionnaire*`, `QuestionnaireSubmission` (incl. `notes`), `SubmissionEdit`, `Resource*`, `SheetImportState` |
 | Sales | sales | `Product`, `ProductFamilyInfo`, `Client`, `ClientLabel`, `ClientLabelAssignment`, `ClientEvent`, `ClientEventReceipt`, `ClientMergeAudit`, `Deal`, `DealLabel`, `DealLabelAssignment`, `DealLabelApprovalRequest`, `QuoteLineItem`, `BoothUnit`, `QuotePdfTemplate`, `QuotePdfMarketDefault` |
@@ -831,3 +831,28 @@ the highest `MQ-` number already in `Deal`, so a recreated sequence cannot repea
 quote number (`Deal.quoteNumber` is unique). Applying it to production changes nothing
 and there is nothing to roll back. Never reset or restart the sequence, in a script or
 by hand. It is listed in the SQL-only inventory, so CI fails if a script drops it.
+
+## Earned HR compensation
+
+`EmployeeCommission` remains the annual available opportunity. It is never
+backfilled into earned amounts. `HrEarning` records either one employee's
+commission over up to 36 months, or one team's bonus for a month. Its immutable
+`HrEarningAllocation` rows capture the employee, month, company and exact share.
+The parent captures the reporting team and its name. Team membership changes
+do not redistribute existing awards. Current membership only suggests recipients;
+HR reviews backdated awards. Amounts are EUR costs exactly as entered, with no
+additional employer charges. Zero commission is an explicit recorded zero.
+
+Gateway validates and writes parent and allocations in one transaction, checks
+that shares sum to the parent, and locks the client-generated request ID before
+checking its actor/hash to make retries idempotent. A correction cancels the
+original and creates a replacement atomically; cancelled records and allocations
+remain in history, with the actor, reason and time. Cancellation never deletes
+records. Restricting deletion of referenced employees, users and teams preserves
+the history. All readers exclude cancelled earnings from costs.
+
+Apply `scripts/add-hr-earned-compensation.sql` twice on verified staging. It is
+additive and rerunnable. Older clients continue to work; roll back the Gateway
+code without dropping the tables. Historical annual opportunities remain intact;
+actual earnings need explicit entry/backfill, including explicit zeros. Release
+0.117.0 and production SQL require the coordinated release approval.
