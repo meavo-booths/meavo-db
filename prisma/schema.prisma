@@ -3327,8 +3327,11 @@ model MrpBatchUnitElement {
   isComplete      Boolean   @default(false)
   completedAt     DateTime?
   deductionPosted Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  /// Posted without its colour-specific BOM lines because the unit's colour had
+  /// none yet; the sync posts them once that colour's lines exist.
+  colourDeductionPending Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   batchUnit    MrpBatchUnit    @relation(fields: [batchUnitId], references: [id], onDelete: Cascade)
   boothElement MrpBoothElement @relation(fields: [boothElementId], references: [id], onDelete: Restrict)
@@ -3662,6 +3665,11 @@ model FactoryColor {
   nameBg    String
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
+  /// Created by the planning sync for a colour name that is not in the catalogue,
+  /// so its batch still gets tasks. The schedule warns until MRP has BOM colour
+  /// lines for it.
+  provisional      Boolean   @default(false)
+  provisionalSince DateTime?
 
   batchColors      FactoryProductionBatchColor[]
   workItems        FactoryStationWorkItem[]
