@@ -425,6 +425,8 @@ model EmployeeDocument {
 }
 
 model DocumentTemplate {
+  company        Company?
+  brandColor     String @default("")
   id             String   @id @default(cuid())
   name           String
   description    String   @default("")
