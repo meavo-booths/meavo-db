@@ -849,6 +849,8 @@ model Assembly {
   linkedDeal      Deal?                     @relation(fields: [linkedDealId], references: [dealId], onDelete: SetNull)
   submissions     QuestionnaireSubmission[]
   teamAssignments AssemblyTeamAssignment[]
+  /// Replacement-part requests ordered from this job (owner: rp).
+  rpRequests      RpRequest[]
 
   @@index([installPartnerId])
   @@index([assemblyDate])
@@ -4558,10 +4560,17 @@ model RpRequest {
    * RPs). Used to sync common shipping fields and offer group cancel.
    */
   linkedGroupId           String?                   @map("linked_group_id")
+  /// Assembly job this RP was ordered from (the "Order RP" button on the job page).
+  /// Null for RPs logged in the RP app directly.
+  assemblyId              String?                   @map("assembly_id")
+  /// Business DealID of the sale the RP belongs to, copied from the job when known.
+  /// Plain text, no foreign key: a deal can be renamed or removed without touching RPs.
+  dealId                  String?                   @map("deal_id")
   createdAt               DateTime                  @default(now()) @map("created_at")
   updatedAt               DateTime                  @updatedAt @map("updated_at")
   syncedAt                DateTime?                 @map("synced_at")
 
+  assembly                Assembly?                 @relation(fields: [assemblyId], references: [id], onDelete: SetNull)
   lineItems               RpLineItem[]
   internalProductionRows  RpInternalProductionRow[] @relation("RpSourceRequest")
   photos                  RpPhoto[]
@@ -4571,6 +4580,8 @@ model RpRequest {
   @@index([urgency])
   @@index([orderSentAt])
   @@index([linkedGroupId])
+  @@index([assemblyId])
+  @@index([dealId])
   @@map("rp_requests")
 }
 
