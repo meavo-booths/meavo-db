@@ -74,6 +74,7 @@ REPLAY=(
   scripts/add-provisional-colours.sql
   scripts/add-hr-earned-compensation.sql
   scripts/add-document-template-settings.sql
+  scripts/add-rp-assembly-link.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
