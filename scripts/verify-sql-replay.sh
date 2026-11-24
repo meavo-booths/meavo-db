@@ -76,6 +76,7 @@ REPLAY=(
   scripts/add-document-template-settings.sql
   scripts/add-rp-assembly-link.sql
   scripts/add-assembly-resolution.sql
+  scripts/add-showroom-checkups.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
