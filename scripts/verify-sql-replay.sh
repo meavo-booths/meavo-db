@@ -75,6 +75,7 @@ REPLAY=(
   scripts/add-hr-earned-compensation.sql
   scripts/add-document-template-settings.sql
   scripts/add-rp-assembly-link.sql
+  scripts/add-assembly-resolution.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the

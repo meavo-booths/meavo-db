@@ -851,6 +851,8 @@ model Assembly {
   teamAssignments AssemblyTeamAssignment[]
   /// Replacement-part requests ordered from this job (owner: rp).
   rpRequests      RpRequest[]
+  /// Staff decisions that settled or reopened this job (see AssemblyResolution).
+  resolutions     AssemblyResolution[]
 
   @@index([installPartnerId])
   @@index([assemblyDate])
@@ -1022,6 +1024,45 @@ model SubmissionPhoto {
 
   @@index([submissionId])
   @@index([submissionId, sectionId])
+}
+
+enum AssemblyResolutionKind {
+  /// Issue set to No by hand: the reported problem is settled.
+  RESOLVE_ISSUE
+  /// Closure switched on by hand, e.g. the report will never come.
+  CLOSE
+  /// A resolve or close undone: Issue and Closure put back as they were.
+  REOPEN
+}
+
+/// One staff decision on a job in the assembly app: an issue resolved, the job
+/// closed, or either of those reopened. Append-only; the job's Issue and
+/// Closure fields hold the current state, this table says who decided, when
+/// and why, and what the fields were before (so Reopen can restore them).
+model AssemblyResolution {
+  id              String                 @id @default(cuid())
+  assemblyId      String
+  kind            AssemblyResolutionKind
+  /// Reason key from the app's list (src/lib/job-resolution.ts in assembly),
+  /// e.g. "CLIENT_ACCEPTED". A string so the list can change without a migration.
+  reason          String
+  note            String                 @default("")
+  /// Issue and Closure just before this decision.
+  previousIssue   AssemblyIssue
+  previousClosure Boolean
+  /// Gateway User id of the staff member, and their name at the time. No
+  /// foreign key: the record must outlive the account.
+  userId          String?
+  userName        String                 @default("")
+  /// Optional follow-up job (Assembly.dealId) or replacement part (RP number)
+  /// named with the reason. Plain text, shown as links when they still exist.
+  linkedJobId     String?
+  linkedRpNum     String?
+  createdAt       DateTime               @default(now())
+
+  assembly Assembly @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+
+  @@index([assemblyId, createdAt])
 }
 
 model SheetImportState {
