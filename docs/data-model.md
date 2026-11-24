@@ -32,6 +32,7 @@ The schema is organized by owning app with `// ---- <Domain> (owner: <app>) ----
 | Physical booth inventory | inventory | `BoothFamily` and `ProductionBatch` (shared masters, see below), `InventoryUnit`, `InventoryWarehouse*`, `InventoryPallet*`, `InventoryDemand*`, `InventoryAllocation`, `InventoryExportLine`, `InventoryTransfer*`, `InventoryIntegrationEvent`; also the only writer of `BoothUnit.inventoryUnitId/serialCode/inventorySyncedAt` (full contract in [inventory-v1.md](inventory-v1.md)) |
 | Zeron material checker | zeron-material-checker | `ZeronSheetState`, `ZeronImportRun`, `ZeronImportedTab`, `ZeronDeliveryRow`, `ZeronAcceptedUnitCost` (the app keeps its own local schema and never pushes it; MRP reads `ZeronDeliveryRow` with raw SQL) |
 | Dev backlog | dev | `BacklogFamily`, `BacklogApp`, `BacklogItem`, `BacklogItemRelation`, `BacklogLink`, `BacklogComment`, `BacklogAttachment`, `BacklogSubscriber`, `BacklogActivity`, `BacklogOverviewPreference`, `BacklogItemOwner` (engineering backlog at dev.meavo.app) |
+| Showrooms | showroom | `Showroom`, `ShowroomBooth`, `ShowroomNotifyUser`, `ShowroomCheck`, `ShowroomBooking`, `ShowroomSetting` (partner showrooms, the booths on site, who is notified, check-ups, visit bookings and app settings at showroom.meavo.app) |
 
 The full authoritative matrix is in [README.md](../README.md) § Table ownership.
 
@@ -856,3 +857,59 @@ additive and rerunnable. Older clients continue to work; roll back the Gateway
 code without dropping the tables. Historical annual opportunities remain intact;
 actual earnings need explicit entry/backfill, including explicit zeros. Release
 0.117.0 and production SQL require the coordinated release approval.
+
+## Showrooms and check-ups (0.121.0)
+
+showroom.meavo.app replaces the "Showroom Check-Up" Google Sheet. `Showroom` is a
+partner location where MEAVO booths are on display: name, country and city, `tier`
+(1 to 3), `checkFrequencyMonths` (the showroom's own check-up interval; null follows
+its tier, whose interval is the "tiers" row of `ShowroomSetting`),
+the models on display, the Customer Service person `responsible` (a name, as in the
+sheet, not a user link) and the Drive folder that holds the evidence. `status` is the
+operating status staff set (`ALL_GOOD`, `CHECK_NOTES`, `TEMPORARILY_CLOSED`,
+`PERMANENTLY_CLOSED`) with a `statusNote`; it replaces an active flag, and a
+permanently closed showroom is kept for its history. The showroom's profile is
+address, building type, `googleMapsUrl`, a main contact and an appointment contact
+(name, job title, email and phone each), whether an appointment is needed,
+`showOnWebsite` (whether meavo.com should list it), opening hours, the Calendly link
+still in use, the public booking page address (`bookingSlug`, null keeps it off the
+public pages) and the `language` that page opens in, review and partner website
+links and the action to be taken. `description`, `bookingDescription`, `directions`
+and `arrivalInstructions` are texts for visitors, each held in the showroom's
+language and, in the matching `…En` column, in English.
+`notifyShowroomEmails` lists the addresses at the showroom to notify about bookings,
+and `ShowroomNotifyUser` (one row per showroom and user) the MEAVO people to notify;
+both are recorded only until booking emails exist. `ShowroomBooth` is one booth on
+site: `model`, `boothId`, `version`, `installedOn`, `conditionRating` (1 poor to 5 as
+new, null while not rated), a `note` and its `position` in the list. The agreement is held as `contractStartOn`, `contractEndOn` (null when
+unknown or open-ended), `contractOpenEnded`, `boothsPassToPartner` (whether the
+partner owns the booths when it ends; null while unknown) and `contractNotes` in the
+team's own words. `ShowroomCheck`
+is one row of the check log. `status` is `AWAITING_REPLY` while the showroom has been
+contacted and has not answered, and `COMPLETED` once the result is recorded; only
+completed checks count as done. `issuesFound` and `evidenceInDrive` are null while
+not recorded, and `issueStatus` is set only when issues were found, and
+`issueResolvedOn` is the day it was fixed: the app counts the next check-up from the
+latest of the last completed check and the last fix. `checklist` holds
+the answers to the app's checklist, keyed by its item keys, and is null for checks
+imported from the sheet, and `format` is null for an imported check that had a
+date in Main Info but no log entry. Last check date, next due date and the OK / overdue /
+not-checked status are derived in the app from the latest completed check and the
+frequency; they are not stored. `recordedById` is the user who entered the check and
+is set null if that user is deleted. Apply `scripts/add-showroom-checkups.sql` (new
+enums and tables only; older clients ignore them).
+
+`ShowroomBooking` is a visit booked on the public booking page. A showroom is
+bookable in the app once `bookingEnabled` is true; its slots come from `bookingHours`
+(weekly hours in a strict text format) in its `timeZone`, starting `bookingLeadDays`
+from today. `bookingMode` decides whether a new booking is `CONFIRMED` at once or
+`REQUESTED` until staff confirm or decline it. `slotKey` is set while a booking holds
+its slot and cleared when it is declined or cancelled; being unique, it stops two
+bookings taking the same slot without a partial index. `token` identifies the
+visitor's own confirmation page. Visitor name, email, phone and company are personal
+data: only the showroom app reads them.
+
+`ShowroomSetting` holds the showroom app's settings, one row per key with a JSON
+value the app validates; a missing row means the app's default. The "tiers" row
+holds, for each of the three tiers, the check-up interval in months and the criteria
+for the tier. `updatedById` is the user who last changed the setting.
