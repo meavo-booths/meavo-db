@@ -5511,6 +5511,8 @@ model BoothFamily {
   factoryModel      FactoryBoothModel?
   mrpModel          MrpBoothModel?
   productionBatches ProductionBatch[]
+  showroomBooths    ShowroomBooth[]
+  showroomModels    ShowroomModel[]
 }
 
 /// Lifecycle of a master production batch. Factory paused maps to IN_PRODUCTION,
@@ -6672,7 +6674,8 @@ model Showroom {
   tier                 Int
   /// This showroom's own check-up interval in months. Null follows its tier.
   checkFrequencyMonths Int?
-  /// Free text, e.g. "SO, WS, CA4".
+  /// Legacy free text, e.g. "SO, WS, CA4". Superseded by `models` (ShowroomModel, 0.122.0);
+  /// kept until every showroom consumer reads `models`, then dropped.
   modelsOnDisplay      String   @default("")
   /// Customer Service owner, by name. Not a user link: the sheet holds first names.
   responsible          String   @default("")
@@ -6760,6 +6763,7 @@ model Showroom {
   bookings    ShowroomBooking[]
   booths      ShowroomBooth[]
   notifyUsers ShowroomNotifyUser[]
+  models      ShowroomModel[]
 
   @@index([status, country, city])
 }
@@ -6854,8 +6858,11 @@ model ShowroomSetting {
 model ShowroomBooth {
   id              String    @id @default(cuid())
   showroomId      String
-  /// Product name, e.g. "Soho", "Camden Four", "Haven One".
+  /// Legacy product name, e.g. "Soho", "Camden Four". Superseded by `familyCode`
+  /// (0.122.0); kept until every showroom consumer reads `familyCode`, then dropped.
   model           String
+  /// BoothFamily code: SO WS C2 C4 H1 HF H2 H4. Null only for a booth whose model is unknown.
+  familyCode      String?
   /// The booth's ID as on its label, e.g. "SO9612".
   boothId         String    @default("")
   version         String    @default("")
@@ -6867,9 +6874,11 @@ model ShowroomBooth {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  showroom Showroom @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+  showroom Showroom     @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+  family   BoothFamily? @relation(fields: [familyCode], references: [code], onDelete: Restrict)
 
   @@index([showroomId, position])
+  @@index([familyCode])
 }
 
 /// A MEAVO user who is notified about a showroom's bookings.
@@ -6883,4 +6892,18 @@ model ShowroomNotifyUser {
 
   @@id([showroomId, userId])
   @@index([userId])
+}
+
+/// A booth model on display at a showroom, by BoothFamily code (the Check-Up sheet's
+/// "models on display"). Independent of the booth units in ShowroomBooth.
+model ShowroomModel {
+  showroomId String
+  familyCode String
+  createdAt  DateTime @default(now())
+
+  showroom Showroom    @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+  family   BoothFamily @relation(fields: [familyCode], references: [code], onDelete: Restrict)
+
+  @@id([showroomId, familyCode])
+  @@index([familyCode])
 }

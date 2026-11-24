@@ -880,7 +880,7 @@ language and, in the matching `…En` column, in English.
 `notifyShowroomEmails` lists the addresses at the showroom to notify about bookings,
 and `ShowroomNotifyUser` (one row per showroom and user) the MEAVO people to notify;
 both are recorded only until booking emails exist. `ShowroomBooth` is one booth on
-site: `model`, `boothId`, `version`, `installedOn`, `conditionRating` (1 poor to 5 as
+site: `familyCode` (its BoothFamily code, from 0.122.0; null only when the model is unknown), the legacy free-text `model`, `boothId`, `version`, `installedOn`, `conditionRating` (1 poor to 5 as
 new, null while not rated), a `note` and its `position` in the list. The agreement is held as `contractStartOn`, `contractEndOn` (null when
 unknown or open-ended), `contractOpenEnded`, `boothsPassToPartner` (whether the
 partner owns the booths when it ends; null while unknown) and `contractNotes` in the
@@ -898,6 +898,8 @@ not-checked status are derived in the app from the latest completed check and th
 frequency; they are not stored. `recordedById` is the user who entered the check and
 is set null if that user is deleted. Apply `scripts/add-showroom-checkups.sql` (new
 enums and tables only; older clients ignore them).
+
+From 0.122.0 booth models use the shared BoothFamily codes, as in the other apps: `ShowroomBooth.familyCode` and `ShowroomModel` (one row per showroom and family code: the models on display, which the Check-Up sheet records separately from the booth units). The free-text `ShowroomBooth.model` and `Showroom.modelsOnDisplay` are legacy and are dropped in a later release once every showroom consumer reads the codes. `scripts/add-showroom-booth-family.sql` adds both, backfills them from the free text (filling only what is empty) and tidies `BoothFamily.aliases`.
 
 `ShowroomBooking` is a visit booked on the public booking page. A showroom is
 bookable in the app once `bookingEnabled` is true; its slots come from `bookingHours`
