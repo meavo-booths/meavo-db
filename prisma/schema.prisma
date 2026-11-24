@@ -136,6 +136,11 @@ model User {
   backlogOverviewPreferences BacklogOverviewPreference[] @relation("BacklogOverviewPreference")
   backlogAppsOwned           BacklogApp[]        @relation("BacklogAppOwner")
   backlogItemOwnerships      BacklogItemOwner[]  @relation("BacklogItemOwners")
+
+  showroomChecksRecorded     ShowroomCheck[]     @relation("ShowroomCheckRecorder")
+  showroomBookingsDecided    ShowroomBooking[]   @relation("ShowroomBookingDecider")
+  showroomSettingsEdited     ShowroomSetting[]   @relation("ShowroomSettingEditor")
+  showroomNotifications      ShowroomNotifyUser[] @relation("ShowroomNotifyUser")
 }
 
 model Account {
@@ -6608,4 +6613,274 @@ model BacklogOverviewPreference {
 
   @@id([userId, appId])
   @@index([userId, position])
+}
+
+// ---- Showrooms (owner: showroom, showroom.meavo.app) ----
+// Partner locations where MEAVO booths are on display, and the recurring check-ups
+// Customer Service runs on them. Replaces the "Showroom Check-Up" Google Sheet:
+// `Showroom` is its Main Info tab and `ShowroomCheck` its Check log. Last check,
+// next due date and the OK / overdue status are derived from the checks, not stored.
+
+enum ShowroomCheckFormat {
+  EMAIL
+  DIRECT
+}
+
+/// AWAITING_REPLY: the showroom was contacted and has not answered yet, so the
+/// check does not count as done. COMPLETED: the result is recorded.
+enum ShowroomCheckStatus {
+  AWAITING_REPLY
+  COMPLETED
+}
+
+enum ShowroomIssueStatus {
+  PENDING
+  RESOLVED
+}
+
+/// INSTANT: a visit is confirmed as soon as it is booked. REQUEST: the visitor
+/// sends a request and MEAVO confirms it after checking with the showroom.
+enum ShowroomBookingMode {
+  INSTANT
+  REQUEST
+}
+
+/// PERMANENTLY_CLOSED takes a showroom off every list and public page.
+/// TEMPORARILY_CLOSED keeps its public page but takes no new bookings.
+/// CHECK_NOTES is open, with something staff should read first (`statusNote`).
+enum ShowroomStatus {
+  ALL_GOOD
+  CHECK_NOTES
+  TEMPORARILY_CLOSED
+  PERMANENTLY_CLOSED
+}
+
+enum ShowroomBookingStatus {
+  REQUESTED
+  CONFIRMED
+  DECLINED
+  CANCELLED
+}
+
+model Showroom {
+  id                   String   @id @default(cuid())
+  /// Showroom or partner name as Customer Service knows it.
+  name                 String
+  country              String
+  city                 String
+  /// 1 to 3. The tier's check-up interval is a setting (`ShowroomSetting` "tiers").
+  tier                 Int
+  /// This showroom's own check-up interval in months. Null follows its tier.
+  checkFrequencyMonths Int?
+  /// Free text, e.g. "SO, WS, CA4".
+  modelsOnDisplay      String   @default("")
+  /// Customer Service owner, by name. Not a user link: the sheet holds first names.
+  responsible          String   @default("")
+  /// Shared Drive folder holding the videos and photos sent as evidence.
+  driveFolderUrl       String   @default("")
+  notes                String   @default("") @db.Text
+  /// Street address as given to a visitor; may span lines.
+  address              String   @default("") @db.Text
+  /// Free text: "Coworking", "Office", "Agency showroom".
+  buildingType         String   @default("")
+  /// Main contact at the showroom.
+  contactName          String   @default("")
+  contactJobTitle      String   @default("")
+  contactEmail         String   @default("")
+  contactPhone         String   @default("")
+  /// Who to arrange visits with. All empty means the main contact.
+  appointmentContactName     String @default("")
+  appointmentContactJobTitle String @default("")
+  appointmentContactEmail    String @default("")
+  appointmentContactPhone    String @default("")
+  /// Showroom addresses that get a copy of booking emails.
+  notifyShowroomEmails String[] @default([])
+  /// The showroom's own Google Maps listing.
+  googleMapsUrl        String   @default("")
+  /// The agreement in the team's own words, e.g. "48 Months from 20/03/2025".
+  contractNotes        String   @default("") @db.Text
+  contractStartOn      DateTime? @db.Date
+  /// Null when unknown or when the agreement is open-ended.
+  contractEndOn        DateTime? @db.Date
+  /// True for agreements with no end date ("no limit").
+  contractOpenEnded    Boolean  @default(false)
+  /// Whether the partner becomes owner of the booths when the agreement ends.
+  /// Null while unknown; it differs per contract.
+  boothsPassToPartner  Boolean?
+  /// Whether a visit must be arranged in advance. Null while unknown.
+  appointmentNeeded    Boolean?
+  /// Whether the showroom is listed on meavo.com.
+  showOnWebsite        Boolean  @default(false)
+  /// Website and booking page texts in the showroom's `language`; the `En`
+  /// twin is the English version (unused when the language is English).
+  description            String @default("") @db.Text
+  descriptionEn          String @default("") @db.Text
+  bookingDescription     String @default("") @db.Text
+  bookingDescriptionEn   String @default("") @db.Text
+  /// How to reach the showroom.
+  directions             String @default("") @db.Text
+  directionsEn           String @default("") @db.Text
+  /// What to do on arrival for a visit.
+  arrivalInstructions    String @default("") @db.Text
+  arrivalInstructionsEn  String @default("") @db.Text
+  /// Weekly visiting hours in the showroom's local time (free text).
+  openingHours         String   @default("")
+  /// Booking page used while visits are still booked through Calendly.
+  calendlyUrl          String   @default("")
+  /// Public address of the showroom's booking page (showroom.meavo.app/book/<slug>).
+  /// Null keeps the showroom off the public booking pages.
+  bookingSlug          String?  @unique
+  /// Language the booking page opens in, as a two-letter code ("en", "de", "fr"...).
+  /// Visitors can always switch to English.
+  language             String   @default("en")
+  /// True once visits are booked in the app. While false the booking page
+  /// hands over to `calendlyUrl`.
+  bookingEnabled       Boolean  @default(false)
+  /// IANA time zone the showroom's hours and bookings are in, e.g. "Europe/Berlin".
+  timeZone             String   @default("Europe/London")
+  /// Weekly bookable hours in the app's strict format, one rule per line or
+  /// separated by ";": "Mon-Fri 09:00-17:00", "Mon,Thu 09:30-16:00",
+  /// "Mon-Fri 08:00-12:00 13:30-17:00". Empty means no bookable hours.
+  bookingHours         String   @default("")
+  bookingMode          ShowroomBookingMode @default(REQUEST)
+  /// Earliest bookable day, counted in days from today.
+  bookingLeadDays      Int      @default(1)
+  /// Google review link for the showroom.
+  reviewUrl            String   @default("")
+  /// The partner's own website.
+  websiteUrl           String   @default("")
+  actionToBeTaken      String   @default("") @db.Text
+  status               ShowroomStatus @default(ALL_GOOD)
+  /// What to know about the showroom; expected when the status is CHECK_NOTES.
+  statusNote           String   @default("") @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  checks      ShowroomCheck[]
+  bookings    ShowroomBooking[]
+  booths      ShowroomBooth[]
+  notifyUsers ShowroomNotifyUser[]
+
+  @@index([status, country, city])
+}
+
+model ShowroomCheck {
+  id              String               @id @default(cuid())
+  showroomId      String
+  /// Calendar day of the check, or of the request while awaiting a reply.
+  checkedOn       DateTime             @db.Date
+  /// Null only for checks imported from the sheet without a log entry.
+  format          ShowroomCheckFormat?
+  status          ShowroomCheckStatus  @default(COMPLETED)
+  /// Who was contacted at the showroom, usually an email address.
+  contactPerson   String               @default("")
+  /// Customer Service person who ran the check, by name.
+  responsible     String               @default("")
+  /// Null while unknown or not recorded.
+  issuesFound     Boolean?
+  /// Set only when issues were found.
+  issueStatus     ShowroomIssueStatus?
+  /// Day the issue was fixed. The next check-up is counted from the latest of
+  /// the last completed check and the last fix.
+  issueResolvedOn DateTime?            @db.Date
+  /// Action taken and fix notes.
+  notes           String               @default("") @db.Text
+  /// Whether the evidence was added to the showroom's Drive folder.
+  evidenceInDrive Boolean?
+  /// Checklist answers keyed by the app's checklist item keys: "YES" or "NO".
+  /// Null for checks imported from the sheet, which recorded no answers.
+  checklist       Json?
+  recordedById    String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  showroom   Showroom @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+  recordedBy User?    @relation("ShowroomCheckRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([showroomId, checkedOn])
+  @@index([issueStatus])
+  @@index([recordedById])
+}
+
+/// A visitor's booked or requested showroom visit, made on the public booking page.
+model ShowroomBooking {
+  id             String                @id @default(cuid())
+  showroomId     String
+  startsAt       DateTime
+  endsAt         DateTime
+  status         ShowroomBookingStatus
+  /// "<showroomId>:<startsAt ISO>" while the booking holds its slot (REQUESTED or
+  /// CONFIRMED), null once declined or cancelled. Unique, so a slot is held once.
+  slotKey        String?               @unique
+  /// Random token for the visitor's own confirmation page.
+  token          String                @unique
+  visitorName    String
+  visitorEmail   String
+  visitorPhone   String                @default("")
+  visitorCompany String                @default("")
+  message        String                @default("") @db.Text
+  /// Language the visitor booked in.
+  language       String                @default("en")
+  /// Staff member who confirmed, declined or cancelled it.
+  decidedById    String?
+  decidedAt      DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  showroom  Showroom @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+  decidedBy User?    @relation("ShowroomBookingDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([showroomId, startsAt])
+  @@index([status, startsAt])
+  @@index([visitorEmail, createdAt])
+  @@index([decidedById])
+}
+
+/// Settings of the showroom app, one row per setting. `value` is validated by
+/// the app; a missing row means the app's default. "tiers" holds each tier's
+/// check-up interval in months and the criteria for the tier.
+model ShowroomSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  updatedBy User? @relation("ShowroomSettingEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([updatedById])
+}
+
+/// One booth on display at a showroom.
+model ShowroomBooth {
+  id              String    @id @default(cuid())
+  showroomId      String
+  /// Product name, e.g. "Soho", "Camden Four", "Haven One".
+  model           String
+  /// The booth's ID as on its label, e.g. "SO9612".
+  boothId         String    @default("")
+  version         String    @default("")
+  installedOn     DateTime? @db.Date
+  /// 1 (poor) to 5 (as new). Null while not rated.
+  conditionRating Int?
+  note            String    @default("")
+  position        Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  showroom Showroom @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+
+  @@index([showroomId, position])
+}
+
+/// A MEAVO user who is notified about a showroom's bookings.
+model ShowroomNotifyUser {
+  showroomId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  showroom Showroom @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+  user     User     @relation("ShowroomNotifyUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([showroomId, userId])
+  @@index([userId])
 }
