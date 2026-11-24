@@ -78,6 +78,7 @@ REPLAY=(
   scripts/add-assembly-resolution.sql
   scripts/add-showroom-checkups.sql
   scripts/add-showroom-booth-family.sql
+  scripts/add-showroom-standard-fields.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the

@@ -141,6 +141,8 @@ model User {
   showroomBookingsDecided    ShowroomBooking[]   @relation("ShowroomBookingDecider")
   showroomSettingsEdited     ShowroomSetting[]   @relation("ShowroomSettingEditor")
   showroomNotifications      ShowroomNotifyUser[] @relation("ShowroomNotifyUser")
+  showroomsResponsible       Showroom[]          @relation("ShowroomResponsible")
+  showroomChecksResponsible  ShowroomCheck[]     @relation("ShowroomCheckResponsible")
 }
 
 model Account {
@@ -6668,7 +6670,11 @@ model Showroom {
   id                   String   @id @default(cuid())
   /// Showroom or partner name as Customer Service knows it.
   name                 String
+  /// Legacy country name ("UK", "Germany"). Superseded by `countryCode` (0.123.0).
   country              String
+  /// ISO 3166-1 alpha-2, upper case ("GB", "DE"), as in the other apps. Empty while unknown.
+  countryCode          String   @default("")
+  /// City in English ("Vienna", "Cologne"); the postal name is `locality`.
   city                 String
   /// 1 to 3. The tier's check-up interval is a setting (`ShowroomSetting` "tiers").
   tier                 Int
@@ -6677,19 +6683,35 @@ model Showroom {
   /// Legacy free text, e.g. "SO, WS, CA4". Superseded by `models` (ShowroomModel, 0.122.0);
   /// kept until every showroom consumer reads `models`, then dropped.
   modelsOnDisplay      String   @default("")
-  /// Customer Service owner, by name. Not a user link: the sheet holds first names.
+  /// Legacy: Customer Service owner by first name. Superseded by `responsibleUserId` (0.123.0).
   responsible          String   @default("")
+  /// The Customer Service person who looks after the showroom.
+  responsibleUserId    String?
   /// Shared Drive folder holding the videos and photos sent as evidence.
   driveFolderUrl       String   @default("")
   notes                String   @default("") @db.Text
-  /// Street address as given to a visitor; may span lines.
+  /// What the team knows about the booths' condition, in its own words.
+  boothConditionNote   String   @default("") @db.Text
+  /// Legacy free-text address. Superseded by venue, street, postcode and locality (0.123.0).
   address              String   @default("") @db.Text
-  /// Free text: "Coworking", "Office", "Agency showroom".
+  /// Building or venue as it appears on the address ("EDGE Grand Central").
+  venue                String   @default("")
+  /// Street, number, floor or unit ("Liechtensteinstraße 25, Top 26/27").
+  street               String   @default("")
+  postcode             String   @default("")
+  /// Postal town as written locally ("Wien", "Köln"); empty means `city`.
+  locality             String   @default("")
+  /// One of "Coworking", "Office", "Agency showroom" (checked in the app).
   buildingType         String   @default("")
+  /// The showroom's general email address, besides its contacts.
+  generalEmail         String   @default("")
+  /// Other people at the showroom to reach by email.
+  otherContactEmails   String[] @default([])
   /// Main contact at the showroom.
   contactName          String   @default("")
   contactJobTitle      String   @default("")
   contactEmail         String   @default("")
+  /// International format, e.g. "+4915783053615" (since 0.123.0).
   contactPhone         String   @default("")
   /// Who to arrange visits with. All empty means the main contact.
   appointmentContactName     String @default("")
@@ -6726,8 +6748,11 @@ model Showroom {
   /// What to do on arrival for a visit.
   arrivalInstructions    String @default("") @db.Text
   arrivalInstructionsEn  String @default("") @db.Text
-  /// Weekly visiting hours in the showroom's local time (free text).
+  /// Weekly visiting hours in the showroom's local time, in the booking-hours format
+  /// ("Mon-Fri 09:00-17:00", one rule per line) since 0.123.0; older rows may hold free text.
   openingHours         String   @default("")
+  /// Exceptions to the weekly hours, in the team's words ("August: Mon-Fri 09:00-14:00").
+  openingHoursNote     String   @default("")
   /// Booking page used while visits are still booked through Calendly.
   calendlyUrl          String   @default("")
   /// Public address of the showroom's booking page (showroom.meavo.app/book/<slug>).
@@ -6765,7 +6790,10 @@ model Showroom {
   notifyUsers ShowroomNotifyUser[]
   models      ShowroomModel[]
 
+  responsibleUser User? @relation("ShowroomResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+
   @@index([status, country, city])
+  @@index([responsibleUserId])
 }
 
 model ShowroomCheck {
@@ -6777,9 +6805,14 @@ model ShowroomCheck {
   format          ShowroomCheckFormat?
   status          ShowroomCheckStatus  @default(COMPLETED)
   /// Who was contacted at the showroom, usually an email address.
+  /// Legacy: the person contacted, often an email address. Superseded by `contactEmail` (0.123.0).
   contactPerson   String               @default("")
+  /// Email address the check-up request went to.
+  contactEmail    String               @default("")
   /// Customer Service person who ran the check, by name.
+  /// Legacy: who handled it, by first name. Superseded by `responsibleUserId` (0.123.0).
   responsible     String               @default("")
+  responsibleUserId String?
   /// Null while unknown or not recorded.
   issuesFound     Boolean?
   /// Set only when issues were found.
@@ -6800,10 +6833,12 @@ model ShowroomCheck {
 
   showroom   Showroom @relation(fields: [showroomId], references: [id], onDelete: Cascade)
   recordedBy User?    @relation("ShowroomCheckRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+  responsibleUser User? @relation("ShowroomCheckResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
   @@index([showroomId, checkedOn])
   @@index([issueStatus])
   @@index([recordedById])
+  @@index([responsibleUserId])
 }
 
 /// A visitor's booked or requested showroom visit, made on the public booking page.
@@ -6863,8 +6898,16 @@ model ShowroomBooth {
   model           String
   /// BoothFamily code: SO WS C2 C4 H1 HF H2 H4. Null only for a booth whose model is unknown.
   familyCode      String?
-  /// The booth's ID as on its label, e.g. "SO9612".
+  /// The booth's ID as on its label, e.g. "SO9612"; older labels differ ("S2214", "SL9675").
   boothId         String    @default("")
+  /// The number on the label. With the family's factory code it gives the standard ID
+  /// (BoothFamily.factoryCode + serialNumber, e.g. "SW10066"), as in Factory and Inventory.
+  serialNumber    Int?
+  /// Production batch code as on the booth's paperwork ("AB144", "VB97"); matches
+  /// ProductionBatch.code for batches the factory has recorded.
+  batchCode       String    @default("")
+  /// Finish as the team describes it ("Black", "Oak", "RAL 6019").
+  colour          String    @default("")
   version         String    @default("")
   installedOn     DateTime? @db.Date
   /// 1 (poor) to 5 (as new). Null while not rated.
@@ -6879,6 +6922,7 @@ model ShowroomBooth {
 
   @@index([showroomId, position])
   @@index([familyCode])
+  @@index([batchCode])
 }
 
 /// A MEAVO user who is notified about a showroom's bookings.
