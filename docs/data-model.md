@@ -880,7 +880,7 @@ language and, in the matching `…En` column, in English.
 `notifyShowroomEmails` lists the addresses at the showroom to notify about bookings,
 and `ShowroomNotifyUser` (one row per showroom and user) the MEAVO people to notify;
 both are recorded only until booking emails exist. `ShowroomBooth` is one booth on
-site: `model`, `boothId`, `version`, `installedOn`, `conditionRating` (1 poor to 5 as
+site: `familyCode` (its BoothFamily code, from 0.122.0; null only when the model is unknown), the legacy free-text `model`, `boothId`, `version`, `installedOn`, `conditionRating` (1 poor to 5 as
 new, null while not rated), a `note` and its `position` in the list. The agreement is held as `contractStartOn`, `contractEndOn` (null when
 unknown or open-ended), `contractOpenEnded`, `boothsPassToPartner` (whether the
 partner owns the booths when it ends; null while unknown) and `contractNotes` in the
@@ -898,6 +898,12 @@ not-checked status are derived in the app from the latest completed check and th
 frequency; they are not stored. `recordedById` is the user who entered the check and
 is set null if that user is deleted. Apply `scripts/add-showroom-checkups.sql` (new
 enums and tables only; older clients ignore them).
+
+From 0.122.0 booth models use the shared BoothFamily codes, as in the other apps: `ShowroomBooth.familyCode`. A showroom's models on display are the families of its booths; there is no separate list. The free-text `ShowroomBooth.model` and `Showroom.modelsOnDisplay` are legacy and are dropped in a later release once every showroom consumer reads the codes (until then the showroom app shows where the sheet's `modelsOnDisplay` disagrees with the booths). `scripts/add-showroom-booth-family.sql` adds the column and backfills it from the free text (filling only what is empty); it does not change `BoothFamily`.
+
+From 0.123.0 the showroom data has standard fields in place of the sheet's free text: `Showroom.countryCode` (ISO 3166-1 alpha-2, as in Sales and Inventory), `responsibleUserId` on `Showroom` and `ShowroomCheck` (the Customer Service person, a User; `SET NULL` when the user is deleted), a structured address (`venue`, `street`, `postcode`, `locality`), `openingHoursNote` beside `openingHours` (which now uses the booking-hours format), `generalEmail`, `otherContactEmails` and `boothConditionNote`; `ShowroomCheck.contactEmail`; and on `ShowroomBooth` the label's `serialNumber`, the production `batchCode` (matching `ProductionBatch.code` where the factory has the batch) and `colour`. Phone numbers are stored in international format. `country`, `responsible`, `address` and `contactPerson` are legacy until every consumer reads the new fields. `scripts/add-showroom-standard-fields.sql` adds the columns only; the showroom app fills them.
+
+0.124.0 drops `ShowroomModel`, a separate models-on-display list that existed only on staging: the models on display are the families of the showroom's booths (`scripts/drop-showroom-model.sql`).
 
 `ShowroomBooking` is a visit booked on the public booking page. A showroom is
 bookable in the app once `bookingEnabled` is true; its slots come from `bookingHours`

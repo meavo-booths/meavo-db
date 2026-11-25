@@ -77,6 +77,9 @@ REPLAY=(
   scripts/add-rp-assembly-link.sql
   scripts/add-assembly-resolution.sql
   scripts/add-showroom-checkups.sql
+  scripts/add-showroom-booth-family.sql
+  scripts/add-showroom-standard-fields.sql
+  scripts/drop-showroom-model.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
@@ -105,6 +108,11 @@ REVIEWED=(
   # replaced by issueCategories in July 2026 and unused since; the 483 production values
   # were exported first on the owner's decision (6 November 2026).
   'ALTER TABLE "Assembly" DROP COLUMN "issueCategory";'
+  # scripts/drop-showroom-model.sql: drops ShowroomModel, never released to production;
+  # on staging its rows are a copy of Showroom."modelsOnDisplay" (25 November 2026).
+  'ALTER TABLE "ShowroomModel" DROP CONSTRAINT "ShowroomModel_showroomId_fkey";'
+  'ALTER TABLE "ShowroomModel" DROP CONSTRAINT "ShowroomModel_familyCode_fkey";'
+  'DROP TABLE "ShowroomModel";'
 )
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
