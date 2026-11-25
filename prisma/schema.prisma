@@ -5514,7 +5514,6 @@ model BoothFamily {
   mrpModel          MrpBoothModel?
   productionBatches ProductionBatch[]
   showroomBooths    ShowroomBooth[]
-  showroomModels    ShowroomModel[]
 }
 
 /// Lifecycle of a master production batch. Factory paused maps to IN_PRODUCTION,
@@ -6680,8 +6679,9 @@ model Showroom {
   tier                 Int
   /// This showroom's own check-up interval in months. Null follows its tier.
   checkFrequencyMonths Int?
-  /// Legacy free text, e.g. "SO, WS, CA4". Superseded by `models` (ShowroomModel, 0.122.0);
-  /// kept until every showroom consumer reads `models`, then dropped.
+  /// Legacy free text from the Check-Up sheet, e.g. "SO, WS, CA4". The models on display are
+  /// the families of the showroom's booths (ShowroomBooth.familyCode); the showroom app
+  /// compares this text with them so the team can confirm, then dropped.
   modelsOnDisplay      String   @default("")
   /// Legacy: Customer Service owner by first name. Superseded by `responsibleUserId` (0.123.0).
   responsible          String   @default("")
@@ -6788,7 +6788,6 @@ model Showroom {
   bookings    ShowroomBooking[]
   booths      ShowroomBooth[]
   notifyUsers ShowroomNotifyUser[]
-  models      ShowroomModel[]
 
   responsibleUser User? @relation("ShowroomResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
@@ -6936,18 +6935,4 @@ model ShowroomNotifyUser {
 
   @@id([showroomId, userId])
   @@index([userId])
-}
-
-/// A booth model on display at a showroom, by BoothFamily code (the Check-Up sheet's
-/// "models on display"). Independent of the booth units in ShowroomBooth.
-model ShowroomModel {
-  showroomId String
-  familyCode String
-  createdAt  DateTime @default(now())
-
-  showroom Showroom    @relation(fields: [showroomId], references: [id], onDelete: Cascade)
-  family   BoothFamily @relation(fields: [familyCode], references: [code], onDelete: Restrict)
-
-  @@id([showroomId, familyCode])
-  @@index([familyCode])
 }
