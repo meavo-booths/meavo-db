@@ -597,6 +597,15 @@ production has them (`scripts/add-mrp-recipe-version-tables.sql`).
 declared since 0.78.0 but never applied to production, are created there by
 `scripts/add-mrp-electric-assembly-versions.sql` (empty table, nullable column).
 
+**RP booth model codes (0.125.0).** The RP app stores the `BoothFamily` codes
+(SO, WS, C2, C4, H1, HF, H2, H4) in `rp_requests.model`,
+`internal_production_rows.model`, `rp_panel_options.booth_model_code`,
+`rp_spare_parts.booth` and the `spare_parts_kits` automation state, and accepts
+the catalogue's names and aliases plus SW and its legacy codes (H.O, H.F, H.2,
+H.4). [rp-booth-model-codes.sql](../scripts/rp-booth-model-codes.sql) rewrites
+stored legacy values to the codes (data only, idempotent); STOCK, "Other" and
+unknown values are kept.
+
 ## Queries agents should reuse
 
 N/A — this repo contains no query code. Prisma client helpers, seeds, and repositories live in the consuming apps.

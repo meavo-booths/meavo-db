@@ -80,6 +80,7 @@ REPLAY=(
   scripts/add-showroom-booth-family.sql
   scripts/add-showroom-standard-fields.sql
   scripts/drop-showroom-model.sql
+  scripts/rp-booth-model-codes.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
