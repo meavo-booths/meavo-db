@@ -81,6 +81,7 @@ REPLAY=(
   scripts/add-showroom-standard-fields.sql
   scripts/drop-showroom-model.sql
   scripts/rp-booth-model-codes.sql
+  scripts/add-crm-email-and-showroom-crm.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
