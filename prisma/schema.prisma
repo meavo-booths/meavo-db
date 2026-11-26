@@ -3805,6 +3805,12 @@ model FactoryBoothOption {
   nameBg    String
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
+  /// Words in a booth's Опаковане workshop note that mean this option
+  /// (scripts/add-factory-booth-requirements.sql).
+  keywords     String[] @default([])
+  /// FactoryElement codes whose stations need to see this option.
+  elementCodes String[] @default([])
+  isActive     Boolean  @default(true)
 
   unitOptions FactoryProductionBoothUnitOption[]
 }
@@ -4357,6 +4363,14 @@ model FactoryPlanningBooth {
   /// Physical booth whose serialNumber equals boothUniqueId
   /// (scripts/add-booth-identity-links.sql).
   inventoryUnitId         String?                     @unique
+  /// Special requirements read from the batch's Опаковане tab
+  /// (scripts/add-factory-booth-requirements.sql): column C felt colour,
+  /// FactoryBoothOption codes found in the column E note, and the note text
+  /// left after those options are taken out.
+  feltColour              String?
+  optionCodes             String[]                    @default([])
+  workshopNote            String?
+  specSyncedAt            DateTime?
 
   planningBatch         FactoryPlanningBatch          @relation(fields: [planningBatchId], references: [id], onDelete: Cascade)
   inventoryUnit         InventoryUnit?                @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
