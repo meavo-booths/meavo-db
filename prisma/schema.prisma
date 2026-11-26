@@ -1730,6 +1730,9 @@ model Deal {
   /// Set when the HubSpot deal Amount last matched this quote's net total.
   hubspotAmountSyncedAt DateTime?
 
+  /// Optional link to the showroom viewing that led to this quote/deal.
+  showroomBookingId String?
+
   /// Soft delete (owner: sales). Non-null hides the row from every sales list
   /// and report unless the Deleted filter is selected.
   deletedAt       DateTime?
@@ -1741,6 +1744,7 @@ model Deal {
   client           Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
   canonicalQuote   Deal?            @relation("QuoteVariations", fields: [canonicalQuoteId], references: [id], onDelete: Restrict)
   quoteVariations  Deal[]           @relation("QuoteVariations")
+  showroomBooking  ShowroomBooking? @relation(fields: [showroomBookingId], references: [id], onDelete: SetNull)
   contacts         DealContact[]
   lineItems        QuoteLineItem[]
   boothUnits       BoothUnit[]
@@ -1760,6 +1764,7 @@ model Deal {
   @@index([canonicalQuoteId])
   @@index([deletedAt])
   @@index([hubspotDealId])
+  @@index([showroomBookingId])
 }
 
 /// Sales-owned durable invoice snapshots and Zamp delivery state. Never stores quote estimates.
@@ -6665,6 +6670,11 @@ enum ShowroomBookingStatus {
   CANCELLED
 }
 
+enum ShowroomVisitOutcome {
+  VISITED
+  NO_SHOW
+}
+
 model Showroom {
   id                   String   @id @default(cuid())
   /// Showroom or partner name as Customer Service knows it.
@@ -6784,10 +6794,12 @@ model Showroom {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  checks      ShowroomCheck[]
-  bookings    ShowroomBooking[]
-  booths      ShowroomBooth[]
-  notifyUsers ShowroomNotifyUser[]
+  checks        ShowroomCheck[]
+  bookings      ShowroomBooking[]
+  booths        ShowroomBooth[]
+  notifyUsers   ShowroomNotifyUser[]
+  crmEmailRules CrmEmailRule[]
+  crmEmailJobs  CrmEmailJob[]
 
   responsibleUser User? @relation("ShowroomResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
 
@@ -6862,16 +6874,30 @@ model ShowroomBooking {
   /// Staff member who confirmed, declined or cancelled it.
   decidedById    String?
   decidedAt      DateTime?
+  /// Outcome recorded by staff after the visit (null until marked).
+  visitOutcome    ShowroomVisitOutcome?
+  visitOutcomeAt  DateTime?
+  /// Internal CRM notes written by staff about the visitor or viewing.
+  staffNotes      String                @default("") @db.Text
+  /// Previous start instant when a booking is rescheduled.
+  rescheduledFrom DateTime?
+  /// HubSpot CRM deal link (read/link only; mirrors Deal.hubspotDealId in sales).
+  hubspotDealId   String?
+  hubspotDealName String?
+  hubspotLinkedAt DateTime?
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
-  showroom  Showroom @relation(fields: [showroomId], references: [id], onDelete: Cascade)
-  decidedBy User?    @relation("ShowroomBookingDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  showroom     Showroom      @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+  decidedBy    User?         @relation("ShowroomBookingDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  crmEmailJobs CrmEmailJob[]
+  deals        Deal[]
 
   @@index([showroomId, startsAt])
   @@index([status, startsAt])
   @@index([visitorEmail, createdAt])
   @@index([decidedById])
+  @@index([hubspotDealId])
 }
 
 /// Settings of the showroom app, one row per setting. `value` is validated by
@@ -6935,4 +6961,127 @@ model ShowroomNotifyUser {
 
   @@id([showroomId, userId])
   @@index([userId])
+}
+
+
+// ---- Customer CRM Email (owner: showroom) ----
+
+enum CrmEmailJobStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+  SKIPPED
+}
+
+/// Configurable customer-facing email trigger and time-offset rule.
+/// Shared foundation for showroom booking emails now and future CRM flows
+/// (order updates, post-assembly warranty upsells, campaigns).
+model CrmEmailRule {
+  id             String   @id @default(cuid())
+  /// Stable key, e.g. "showroom.booking.confirmed", "showroom.booking.reminder_24h".
+  key            String   @unique
+  /// Domain scope, e.g. "showroom_booking" (future: "order", "assembly", "campaign").
+  scope          String
+  /// Trigger or anchor event, e.g. "BOOKING_REQUESTED", "BOOKING_CONFIRMED",
+  /// "BOOKING_DECLINED", "BOOKING_CANCELLED", "BOOKING_RESCHEDULED",
+  /// "BEFORE_APPOINTMENT", "AFTER_APPOINTMENT".
+  triggerEvent   String
+  /// Offset in minutes relative to anchor timestamp (0 = immediate, -1440 = 24h before, +60 = 1h after).
+  offsetMinutes  Int      @default(0)
+  /// Resend template alias prefix; locale "-<lang>" is appended with fallback to "-en".
+  templateKey    String
+  /// Optional showroom-specific override; null applies across all showrooms.
+  showroomId     String?
+  /// Attach an .ics calendar invite when sending this rule.
+  attachCalendar Boolean  @default(false)
+  enabled        Boolean  @default(true)
+  description    String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  showroom Showroom? @relation(fields: [showroomId], references: [id], onDelete: Cascade)
+
+  @@index([scope, triggerEvent, enabled])
+  @@index([showroomId])
+}
+
+/// Scheduled or sent customer-facing CRM email job, plus per-message delivery,
+/// open, click, bounce and reply tracking.
+model CrmEmailJob {
+  id                String            @id @default(cuid())
+  scope             String
+  entityType        String
+  entityId          String
+  ruleKey           String
+  triggerEvent      String
+  showroomId        String?
+  showroomBookingId String?
+  idempotencyKey    String            @unique
+  templateKey       String
+  templateAlias     String            @default("")
+  language          String            @default("en")
+  fromEmail         String            @default("")
+  replyToEmail      String            @default("")
+  toEmail           String
+  /// Actual recipient when redirected in staging/preview (e.g. showrooms@meavo.com).
+  deliveredToEmail  String            @default("")
+  subject           String            @default("")
+  payload           Json
+  attachCalendar    Boolean           @default(false)
+  status            CrmEmailJobStatus @default(SCHEDULED)
+  scheduledFor      DateTime          @default(now())
+  attempts          Int               @default(0)
+  lastError         String?
+  resendEmailId     String?           @unique
+  /// RFC 5322 Message-ID for Gmail reply-thread matching.
+  rfcMessageId      String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  firstOpenedAt     DateTime?
+  lastOpenedAt      DateTime?
+  openCount         Int               @default(0)
+  firstClickedAt    DateTime?
+  clickCount        Int               @default(0)
+  bouncedAt         DateTime?
+  complainedAt      DateTime?
+  repliedAt         DateTime?
+  replyCount        Int               @default(0)
+  lastProviderEvent String?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  showroom        Showroom?        @relation(fields: [showroomId], references: [id], onDelete: SetNull)
+  showroomBooking ShowroomBooking? @relation(fields: [showroomBookingId], references: [id], onDelete: Cascade)
+  events          CrmEmailEvent[]
+
+  @@index([status, scheduledFor])
+  @@index([showroomId, sentAt])
+  @@index([showroomBookingId, createdAt])
+  @@index([entityType, entityId])
+  @@index([toEmail, sentAt])
+}
+
+/// Raw idempotent provider webhook / reply events linked to a CrmEmailJob.
+model CrmEmailEvent {
+  id              String   @id @default(cuid())
+  /// Svix message ID (or provider event ID) for idempotent ingestion.
+  providerEventId String   @unique
+  provider        String   @default("resend")
+  eventType       String
+  resendEmailId   String?
+  jobId           String?
+  recipientEmail  String   @default("")
+  occurredAt      DateTime
+  payload         Json
+  createdAt       DateTime @default(now())
+
+  job CrmEmailJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([resendEmailId])
+  @@index([jobId, occurredAt])
+  @@index([eventType, occurredAt])
 }
