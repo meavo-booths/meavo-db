@@ -928,3 +928,26 @@ data: only the showroom app reads them.
 value the app validates; a missing row means the app's default. The "tiers" row
 holds, for each of the three tiers, the check-up interval in months and the criteria
 for the tier. `updatedById` is the user who last changed the setting.
+
+## Sales referral commission (0.128.0)
+
+A deal can pay a referral commission: a fee MEAVO pays a partner (for example an
+architect who brought the client) on the partner's own invoice. The client is still
+invoiced the full amount, so the commission lives in its own `Deal` fields and never in
+`QuoteLineItem`: nothing that reads the lines (quote PDF, Xero invoice, US sales tax,
+payment status, collected amounts) can pick it up by accident.
+
+`commissionType` is null when the deal pays no commission, else `PERCENT` or `FIXED`.
+`commissionValue` is the percentage or the fixed amount in the deal currency.
+`commissionBasis` says what a percentage is taken from: `DEAL_TOTAL` (the subtotal excl.
+tax) or `BOOTHS_ONLY` (booth lines only, no add-ons or services); it is ignored for
+`FIXED`. `commissionAmount` is the resulting amount in the deal currency, excl. VAT, and
+`commissionAmountEur` the same in EUR at the deal's exchange rate; Sales recomputes both
+on every save of the deal or its lines, and its revenue reports subtract
+`commissionAmountEur` once per deal. `commissionClientId` is the partner, a `Client`
+(`SET NULL` if that client is deleted; a client merge re-points it), and
+`commissionPartnerName` is the partner's name as it read when the commission was saved.
+
+Apply the additive `scripts/sales-referral-commission.sql` (two enums, seven columns,
+one foreign key, one index) before the Sales consumer reaches an environment. Older
+consumers ignore the columns. Rollback leaves them in place.
