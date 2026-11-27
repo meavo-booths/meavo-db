@@ -85,6 +85,7 @@ REPLAY=(
   scripts/add-factory-booth-requirements.sql
   scripts/sales-referral-commission.sql
   scripts/redate-factory-october-panels-2026-11.sql
+  scripts/drop-unused-factory-option-tables.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
@@ -118,6 +119,20 @@ REVIEWED=(
   'ALTER TABLE "ShowroomModel" DROP CONSTRAINT "ShowroomModel_showroomId_fkey";'
   'ALTER TABLE "ShowroomModel" DROP CONSTRAINT "ShowroomModel_familyCode_fkey";'
   'DROP TABLE "ShowroomModel";'
+  # scripts/drop-unused-factory-option-tables.sql: drops the never-used option tables
+  # (per production slot, per planning booth, per planning batch), the columns that point
+  # at them and FactoryProductionBoothUnit."notes"; all empty in the November audit and on
+  # staging (27 November 2026), and the script aborts if any of them holds data.
+  'ALTER TABLE "FactoryProductionBoothUnitOption" DROP CONSTRAINT "FactoryProductionBoothUnitOption_boothUnitId_fkey";'
+  'ALTER TABLE "FactoryProductionBoothUnitOption" DROP CONSTRAINT "FactoryProductionBoothUnitOption_optionId_fkey";'
+  'ALTER TABLE "FactoryPlanningBatch" DROP CONSTRAINT "FactoryPlanningBatch_batchProductionOptionId_fkey";'
+  'ALTER TABLE "FactoryPlanningBooth" DROP CONSTRAINT "FactoryPlanningBooth_boothProductionOptionId_fkey";'
+  'ALTER TABLE "FactoryProductionBoothUnit" DROP COLUMN "notes";'
+  'ALTER TABLE "FactoryPlanningBatch" DROP COLUMN "batchProductionOptionId";'
+  'ALTER TABLE "FactoryPlanningBooth" DROP COLUMN "boothProductionOptionId";'
+  'DROP TABLE "FactoryProductionBoothUnitOption";'
+  'DROP TABLE "FactoryBatchProductionOption";'
+  'DROP TABLE "FactoryBoothProductionOption";'
 )
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
