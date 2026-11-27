@@ -84,6 +84,7 @@ REPLAY=(
   scripts/add-crm-email-and-showroom-crm.sql
   scripts/add-factory-booth-requirements.sql
   scripts/sales-referral-commission.sql
+  scripts/redate-factory-october-panels-2026-11.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
