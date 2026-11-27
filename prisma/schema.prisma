@@ -3581,6 +3581,11 @@ model MrpStockMovement {
   notes         String?
   /// MrpProductionBatch.id, future zeron event id, etc.
   referenceId   String?
+  /// Set only by once-only postings: one value per ledger row, built by the writer
+  /// from the posting's identity (e.g. "electric:<batch unit id>:<row>",
+  /// "export-week:<week>:<warehouse>:<material>"). The unique index makes a second
+  /// write of the same posting fail. Null on manual and older rows; NULLs never collide.
+  idempotencyKey String?            @unique
   metadata      Json                 @default("{}")
   createdById   String?
   createdAt     DateTime             @default(now())
@@ -3593,6 +3598,7 @@ model MrpStockMovement {
   @@index([warehouseId])
   @@index([materialId])
   @@index([effectiveAt])
+  @@index([referenceId])
 }
 
 /// On-hand quantity per warehouse × material (cache; ledger is source of truth).
@@ -3847,8 +3853,6 @@ model FactoryBoothOption {
   /// FactoryElement codes whose stations need to see this option.
   elementCodes String[] @default([])
   isActive     Boolean  @default(true)
-
-  unitOptions FactoryProductionBoothUnitOption[]
 }
 
 model FactoryProductionBatch {
@@ -3905,7 +3909,6 @@ model FactoryProductionBoothUnit {
   unitIndex    Int
   unitLabel    String
   isUs         Boolean @default(false)
-  notes        String?
   status       String  @default("active")
   /// Physical booth for this slot, set by the stable materialise step
   /// (scripts/add-booth-identity-links.sql adds the column; no backfill).
@@ -3913,23 +3916,12 @@ model FactoryProductionBoothUnit {
 
   batchColor       FactoryProductionBatchColor        @relation(fields: [batchColorId], references: [id], onDelete: Cascade)
   inventoryUnit    InventoryUnit?                     @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
-  options          FactoryProductionBoothUnitOption[]
   workItems        FactoryStationWorkItem[]
   productionEvents FactoryProductionEvent[]
   workSessions     FactoryWorkSession[]
 
   @@unique([batchColorId, unitIndex])
   @@unique([batchColorId, unitLabel])
-}
-
-model FactoryProductionBoothUnitOption {
-  boothUnitId String
-  optionId    String
-
-  boothUnit FactoryProductionBoothUnit @relation(fields: [boothUnitId], references: [id], onDelete: Cascade)
-  option    FactoryBoothOption         @relation(fields: [optionId], references: [id], onDelete: Cascade)
-
-  @@id([boothUnitId, optionId])
 }
 
 /// Materialized work queue per station. Rebuilt wholesale by the
@@ -4332,26 +4324,6 @@ model FactoryBoothVersionCode {
   planningBooths  FactoryPlanningBooth[]
 }
 
-model FactoryBatchProductionOption {
-  id        String  @id @default(cuid())
-  code      String  @unique
-  labelBg   String
-  sortOrder Int     @default(0)
-  isActive  Boolean @default(true)
-
-  planningBatches FactoryPlanningBatch[]
-}
-
-model FactoryBoothProductionOption {
-  id        String  @id @default(cuid())
-  code      String  @unique
-  labelBg   String
-  sortOrder Int     @default(0)
-  isActive  Boolean @default(true)
-
-  planningBooths FactoryPlanningBooth[]
-}
-
 model FactoryPlanningBatch {
   id                      String                     @id @default(cuid())
   siteId                  String
@@ -4364,7 +4336,6 @@ model FactoryPlanningBatch {
   originalDeadline        DateTime?                  @db.Date
   isUsMarket              Boolean?
   boothVersionCodeId      String?
-  batchProductionOptionId String?
   productionMonth         Int?
   productionYear          Int?
   createdAt               DateTime                   @default(now())
@@ -4375,7 +4346,6 @@ model FactoryPlanningBatch {
   site                  FactorySite                   @relation(fields: [siteId], references: [id])
   model                 FactoryBoothModel?            @relation(fields: [modelCode], references: [code])
   boothVersionCode      FactoryBoothVersionCode?      @relation(fields: [boothVersionCodeId], references: [id])
-  batchProductionOption FactoryBatchProductionOption? @relation(fields: [batchProductionOptionId], references: [id])
   productionBatch       ProductionBatch?              @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
   booths                FactoryPlanningBooth[]
 
@@ -4392,7 +4362,6 @@ model FactoryPlanningBooth {
   boothVersionCodeId      String?
   isUsMarket              Boolean                     @default(false)
   status                  FactoryPlanningBoothStatus?
-  boothProductionOptionId String?
   sortOrder               Int                         @default(0)
   createdAt               DateTime                    @default(now())
   updatedAt               DateTime                    @updatedAt
@@ -4412,7 +4381,6 @@ model FactoryPlanningBooth {
   inventoryUnit         InventoryUnit?                @relation(fields: [inventoryUnitId], references: [id], onDelete: SetNull)
   model                 FactoryBoothModel?            @relation(fields: [modelCode], references: [code])
   boothVersionCode      FactoryBoothVersionCode?      @relation(fields: [boothVersionCodeId], references: [id])
-  boothProductionOption FactoryBoothProductionOption? @relation(fields: [boothProductionOptionId], references: [id])
 
   @@index([planningBatchId])
 }
