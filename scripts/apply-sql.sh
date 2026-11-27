@@ -8,7 +8,12 @@
 # Production is part of an approved meavo-db release: the SQL and schema are read from the
 # release tag, which must be on origin/main. The script refuses any other database host,
 # prints a before/after diff limited to the identifiers the script touches, and never
-# prints the connection string. DATABASE_URL may also come from the environment.
+# prints the connection string.
+#
+# The address comes from, in order: --env-file, DATABASE_URL in the environment, or the macOS
+# Keychain item "meavo-db-<target>" (account "meavo"), so --env-file can be left out.
+# Store it once with `security add-generic-password -a meavo -s meavo-db-production -T "" -U -w`
+# (-T "" makes macOS ask the owner on every read of the production item).
 set -euo pipefail
 
 # Neon project "meavo-frankfurt" (aws-eu-central-1), where the database moved on 2026-11-15.
@@ -41,7 +46,11 @@ if [ -n "$env_file" ]; then
   [ -f "$env_file" ] || fail "env file not found: $env_file"
   DATABASE_URL=$(grep -E '^DATABASE_URL=' "$env_file" | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')
 fi
-[ -n "${DATABASE_URL:-}" ] || fail "no DATABASE_URL (pass --env-file or export it)"
+if [ -z "${DATABASE_URL:-}" ] && [ -z "$env_file" ] && command -v security >/dev/null 2>&1; then
+  DATABASE_URL=$(security find-generic-password -a meavo -s "meavo-db-$target" -w 2>/dev/null || true)
+  [ -z "$DATABASE_URL" ] || echo "OK   address from Keychain item meavo-db-$target"
+fi
+[ -n "${DATABASE_URL:-}" ] || fail "no DATABASE_URL (pass --env-file, export it, or store it in the Keychain as meavo-db-$target)"
 expected=$([ "$target" = staging ] && echo "$STAGING_HOST" || echo "$PRODUCTION_HOST")
 case "$DATABASE_URL" in
   *"@$expected"*) echo "OK   target host is $target ($expected)";;
