@@ -3581,6 +3581,11 @@ model MrpStockMovement {
   notes         String?
   /// MrpProductionBatch.id, future zeron event id, etc.
   referenceId   String?
+  /// Set only by once-only postings: one value per ledger row, built by the writer
+  /// from the posting's identity (e.g. "electric:<batch unit id>:<row>",
+  /// "export-week:<week>:<warehouse>:<material>"). The unique index makes a second
+  /// write of the same posting fail. Null on manual and older rows; NULLs never collide.
+  idempotencyKey String?            @unique
   metadata      Json                 @default("{}")
   createdById   String?
   createdAt     DateTime             @default(now())
@@ -3593,6 +3598,7 @@ model MrpStockMovement {
   @@index([warehouseId])
   @@index([materialId])
   @@index([effectiveAt])
+  @@index([referenceId])
 }
 
 /// On-hand quantity per warehouse × material (cache; ledger is source of truth).
