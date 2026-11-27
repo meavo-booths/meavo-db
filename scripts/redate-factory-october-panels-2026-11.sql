@@ -7,15 +7,19 @@
 -- sheet sync "sheet-progress:" / "sheet:"). Boyan checked them on 27 November 2026: they were
 -- made in October. The Factory TV counts records by "recordedAt", so they inflate November.
 --
---   AB190  30 panels   AB191  30 panels   AB193  32 panels (Дъно, Гръб)   AB194  20 panels (Гръб)
+--   AB190  47 panels (all ASM-2 and ASM-3 panels; 13 more were tapped in October)
+--   AB191  48 panels (all ASM-1, ASM-2 and ASM-3 panels; 12 more were tapped in October)
+--   AB193  32 panels (Дъно, Гръб)
+--   AB194  21 panels (Гръб, 1 Врата)
 --
 -- AB195's 16 columns from the same session were November work and are not touched.
 --
 -- Each matching record's "recordedAt" moves back exactly 5 days, to Friday 30 October 2026 at
 -- the same Sofia time (both dates are EET, UTC+2). "createdAt" keeps 4 November as the audit
 -- trail. Nothing else changes. AB190 and AB191 have no other final-assembly record in
--- November, so their batch-close remainder (the 35 ASM-2 panels never recorded) moves to
--- October with them.
+-- November, so both batches then count as finished in October. The counts were read on the
+-- staging copy on 27 November 2026 (148 panels, 30.68 credits); 0.128.1 expected 30/30/32/20
+-- because the ASM-2 entries were missing from the event history it was based on.
 --
 -- Guard: per batch, the panels found in the 4 November window must equal the numbers above;
 -- any other number aborts the whole transaction. A batch with nothing left in the window is
@@ -33,10 +37,10 @@ DECLARE
 BEGIN
   FOR b IN
     SELECT * FROM (VALUES
-      ('AB190', 30),
-      ('AB191', 30),
+      ('AB190', 47),
+      ('AB191', 48),
       ('AB193', 32),
-      ('AB194', 20)
+      ('AB194', 21)
     ) AS t(code, panels)
   LOOP
     SELECT count(*), coalesce(sum(e."qtyGood"), 0)
