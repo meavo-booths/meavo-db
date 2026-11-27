@@ -416,6 +416,16 @@ writes feedback comments. It adds only the nullable `comment` column to
 insert columns) are unaffected, and rerunning it is a no-op. Roll back app
 behavior without dropping the column or saved comments.
 
+Apply `scripts/sales-xero-invoice-due-dates.sql` before the Sales release that
+writes them. It adds the nullable dates `Deal.xeroInvoiceDueDate` and
+`Deal.xeroFinalInvoiceDueDate`: the due date of each linked Xero invoice, set by
+Sales when it creates the invoice and refreshed by its Xero payment sync (Xero
+is the source of truth, so a date changed there follows). Nothing is backfilled:
+existing unpaid deals are filled as the sync reaches them. Sales shows them on
+`/numbers/assembled-not-paid`; the Assembly app reads them (never writes) to
+fill the Delivery Tracker's "Due date" column. Older app versions ignore the
+columns, and rerunning the script is a no-op.
+
 Apply `scripts/sales-payments-override.sql` before the Gateway and Sales
 releases that read or write the Payments right. It adds
 `ToolCardAccess.paymentsOverride` (NOT NULL, default false, so no existing grant

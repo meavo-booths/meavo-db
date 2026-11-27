@@ -87,6 +87,7 @@ REPLAY=(
   scripts/redate-factory-october-panels-2026-11.sql
   scripts/drop-unused-factory-option-tables.sql
   scripts/add-mrp-movement-idempotency-key.sql
+  scripts/sales-xero-invoice-due-dates.sql
 )
 
 # New scripts that cannot be replayed on a database built from the schema, each with the
