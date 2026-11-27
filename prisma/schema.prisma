@@ -1700,6 +1700,14 @@ model Deal {
   /// Same as `xeroInvoiceRemovedAt`, for the final (balance) invoice.
   xeroFinalInvoiceRemovedAt DateTime?
 
+  /// Due date of the linked Xero invoice (owner: sales): set when Sales creates
+  /// the invoice and refreshed by the Xero payment sync, so a date changed in
+  /// Xero follows. Null until the invoice exists or has been read. The Assembly
+  /// app reads these to fill the Delivery Tracker's "Due date" column.
+  xeroInvoiceDueDate      DateTime? @db.Date
+  /// Same as `xeroInvoiceDueDate`, for the final (balance) invoice.
+  xeroFinalInvoiceDueDate DateTime? @db.Date
+
   /// User opted out of creating a Xero invoice at win time (manual DealID path).
   skipXeroOnWin Boolean @default(false)
 
